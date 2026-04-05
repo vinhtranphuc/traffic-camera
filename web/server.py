@@ -23,6 +23,7 @@ from traffic_cam.sources.mjpeg_source import MJPEGSource
 from traffic_cam.sources.rtsp_source import RTSPSource
 from traffic_cam.sources.snapshot_source import SnapshotSource
 from traffic_cam.sources.webcam_source import WebcamSource
+from traffic_cam.sources.youtube_source import YouTubeSource
 from traffic_cam.utils.helpers import resize_frame
 from web.camera_presets import get_preset_by_id, get_presets
 
@@ -53,6 +54,8 @@ def _create_source(source_type: str, url: str, **kwargs) -> CameraSource:
         case "webcam":
             device_index = int(url) if url.isdigit() else 0
             return WebcamSource(device_index)
+        case "youtube":
+            return YouTubeSource(url)
         case _:
             raise ValueError(f"Unknown source type: {source_type}")
 

@@ -8,6 +8,7 @@ from .mjpeg_source import MJPEGSource
 from .rtsp_source import RTSPSource
 from .snapshot_source import SnapshotSource
 from .webcam_source import WebcamSource
+from .youtube_source import YouTubeSource
 
 _SOURCE_MAP: dict[str, type[CameraSource]] = {
     "mjpeg": MJPEGSource,
@@ -15,6 +16,7 @@ _SOURCE_MAP: dict[str, type[CameraSource]] = {
     "rtsp": RTSPSource,
     "webcam": WebcamSource,
     "snapshot": SnapshotSource,
+    "youtube": YouTubeSource,
 }
 
 

@@ -76,6 +76,42 @@ CAMERA_PRESETS: list[dict] = [
         "url": "https://s3-eu-west-1.amazonaws.com/jamcams.tfl.gov.uk/00001.02108.jpg",
         "interval": 5.0,
     },
+    # --- Da Nang, Vietnam (YouTube Live) ---
+    {
+        "id": "dn-cau-rong",
+        "name": "Nut giao thong Tay Cau Rong",
+        "group": "Da Nang - YouTube Live",
+        "type": "youtube",
+        "url": "https://www.youtube.com/watch?v=5wLzH_GrRl8",
+    },
+    {
+        "id": "dn-nguyen-hue",
+        "name": "Cong truong Nguyen Hue",
+        "group": "Da Nang - YouTube Live",
+        "type": "youtube",
+        "url": "https://www.youtube.com/watch?v=sJvEFrG0wq0",
+    },
+    {
+        "id": "dn-benh-vien-c",
+        "name": "Cong sau Benh vien C",
+        "group": "Da Nang - YouTube Live",
+        "type": "youtube",
+        "url": "https://www.youtube.com/watch?v=oif_zZFIfB4",
+    },
+    {
+        "id": "dn-benh-vien-view",
+        "name": "View Cong trinh Benh vien",
+        "group": "Da Nang - YouTube Live",
+        "type": "youtube",
+        "url": "https://www.youtube.com/watch?v=x8tUUv-NGXs",
+    },
+    {
+        "id": "dn-phuong-tran",
+        "name": "PTZ Phuong Tran",
+        "group": "Da Nang - YouTube Live",
+        "type": "youtube",
+        "url": "https://www.youtube.com/watch?v=G_G8A6JU_LI",
+    },
 ]
 
 
