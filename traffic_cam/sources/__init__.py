@@ -6,11 +6,13 @@ from .base import CameraSource
 from .file_source import FileSource
 from .mjpeg_source import MJPEGSource
 from .rtsp_source import RTSPSource
+from .webcam_source import WebcamSource
 
 _SOURCE_MAP: dict[str, type[CameraSource]] = {
     "mjpeg": MJPEGSource,
     "file": FileSource,
     "rtsp": RTSPSource,
+    "webcam": WebcamSource,
 }
 
 
@@ -31,6 +33,9 @@ def create_source(config: BaseConfig) -> CameraSource:
             f"Choose from: {', '.join(_SOURCE_MAP.keys())}"
         )
 
+    if source_cls is WebcamSource:
+        device_index = int(config.CAMERA_URL) if config.CAMERA_URL.isdigit() else 0
+        return WebcamSource(device_index)
     if source_cls is FileSource:
         return FileSource(config.CAMERA_URL, loop=True)
     return source_cls(config.CAMERA_URL)

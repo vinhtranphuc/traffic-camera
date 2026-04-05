@@ -8,6 +8,7 @@ from traffic_cam.sources import create_source
 from traffic_cam.sources.file_source import FileSource
 from traffic_cam.sources.mjpeg_source import MJPEGSource
 from traffic_cam.sources.rtsp_source import RTSPSource
+from traffic_cam.sources.webcam_source import WebcamSource
 
 
 class TestGetConfig:
@@ -15,8 +16,8 @@ class TestGetConfig:
 
     def test_dev_config(self) -> None:
         config = get_config("dev")
-        assert config.CAMERA_SOURCE == "mjpeg"
-        assert config.CAMERA_URL != ""
+        assert config.CAMERA_SOURCE == "webcam"
+        assert config.CAMERA_URL == "0"
 
     def test_test_config(self) -> None:
         config = get_config("test")
@@ -40,8 +41,13 @@ class TestGetConfig:
 class TestCreateSource:
     """Test camera source factory function."""
 
-    def test_create_mjpeg_source(self) -> None:
+    def test_create_webcam_source(self) -> None:
         config = get_config("dev")
+        source = create_source(config)
+        assert isinstance(source, WebcamSource)
+
+    def test_create_mjpeg_source(self) -> None:
+        config = BaseConfig(CAMERA_SOURCE="mjpeg", CAMERA_URL="http://example.com/stream")
         source = create_source(config)
         assert isinstance(source, MJPEGSource)
 
