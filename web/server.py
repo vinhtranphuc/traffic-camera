@@ -383,26 +383,43 @@ def stream_mjpeg():
 
 @app.route("/api/events")
 def api_events():
-    """SSE endpoint for real-time detection events."""
+    """SSE endpoint for real-time detection events.
+
+    Auto-closes after 5 minutes to prevent thread exhaustion.
+    Browser EventSource will auto-reconnect.
+    """
     def generate() -> Generator[str, None, None]:
         last_idx = 0
-        while True:
+        deadline = time.time() + 300  # 5 minute max per connection
+        while time.time() < deadline:
             current_len = len(stream.events)
             if current_len > last_idx:
                 for evt in stream.events[last_idx:current_len]:
                     yield f"data: {json.dumps(evt)}\n\n"
                 last_idx = current_len
-            yield f"data: {json.dumps({'type': 'status', 'streaming': stream.is_streaming, 'frame_count': stream.frame_count, 'total_detections': len(stream.events)})}\n\n"
+            status = {
+                "type": "status",
+                "streaming": stream.is_streaming,
+                "frame_count": stream.frame_count,
+                "total_detections": len(stream.events),
+            }
+            yield f"data: {json.dumps(status)}\n\n"
             time.sleep(1)
 
     return Response(generate(), mimetype="text/event-stream")
 
 
-def run_server(host: str = "0.0.0.0", port: int = 5555, debug: bool = False) -> None:
-    """Start the web server."""
+def run_server(host: str = "0.0.0.0", port: int = 5555) -> None:
+    """Start the web server using waitress (production WSGI)."""
     print(f"[WebUI] http://localhost:{port}")
-    app.run(host=host, port=port, debug=debug, threaded=True)
+    try:
+        from waitress import serve
+        serve(app, host=host, port=port, threads=16,
+              channel_timeout=120, connection_limit=100)
+    except ImportError:
+        print("[WebUI] waitress not installed, falling back to Flask dev server")
+        app.run(host=host, port=port, debug=False, threaded=True)
 
 
 if __name__ == "__main__":
-    run_server(debug=True)
+    run_server()
