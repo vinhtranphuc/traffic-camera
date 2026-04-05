@@ -4,6 +4,7 @@ Uses yt-dlp to extract the direct stream URL from a YouTube video,
 then reads frames via OpenCV VideoCapture.
 """
 
+import logging
 from typing import Any
 
 import cv2
@@ -11,6 +12,8 @@ import numpy as np
 import yt_dlp
 
 from .base import CameraSource
+
+logger = logging.getLogger(__name__)
 
 
 class YouTubeSource(CameraSource):
@@ -23,26 +26,31 @@ class YouTubeSource(CameraSource):
         self._cap: cv2.VideoCapture | None = None
         self._title: str = ""
         self._is_live: bool = False
+        self._error: str = ""
 
     def connect(self) -> bool:
         """Extract stream URL via yt-dlp and open with OpenCV."""
-        print(f"[YouTubeSource] Extracting stream: {self._url}")
+        logger.info("[YouTubeSource] Extracting stream: %s", self._url)
         try:
             self._stream_url = self._extract_stream_url()
         except Exception as e:
-            print(f"[YouTubeSource] yt-dlp failed: {e}")
+            self._error = str(e).encode("ascii", "replace").decode()
+            logger.error("[YouTubeSource] yt-dlp failed: %s", self._error)
             return False
 
         if not self._stream_url:
-            print("[YouTubeSource] No stream URL found.")
+            self._error = "No stream URL found"
+            logger.warning("[YouTubeSource] %s", self._error)
             return False
 
         self._cap = cv2.VideoCapture(self._stream_url)
         if not self._cap.isOpened():
-            print("[YouTubeSource] OpenCV failed to open stream.")
+            self._error = "OpenCV failed to open stream"
+            logger.error("[YouTubeSource] %s", self._error)
             return False
 
-        print(f"[YouTubeSource] Connected: {self._title}")
+        safe_title = self._title.encode("ascii", "replace").decode()
+        logger.info("[YouTubeSource] Connected: %s", safe_title)
         return True
 
     def read_frame(self) -> tuple[bool, np.ndarray | None]:
@@ -71,6 +79,7 @@ class YouTubeSource(CameraSource):
             "url": self._url,
             "title": self._title,
             "is_live": self._is_live,
+            "error": self._error,
         }
 
     def _extract_stream_url(self) -> str:

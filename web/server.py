@@ -28,6 +28,7 @@ from traffic_cam.utils.helpers import resize_frame
 from web.camera_presets import get_preset_by_id, get_presets
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.json.ensure_ascii = False
 
 # Global state
 _active_source: CameraSource | None = None
@@ -115,18 +116,26 @@ def api_test_connect():
             connected = source.connect()
             if connected:
                 ret, frame = source.read_frame()
+                info = source.source_info
                 source.release()
                 if ret and frame is not None:
                     h, w = frame.shape[:2]
-                    return jsonify({
+                    result = {
                         "ok": True,
                         "message": f"Connected! Frame: {w}x{h}",
                         "width": w, "height": h,
-                    })
+                    }
+                    if info.get("title"):
+                        result["title"] = info["title"]
+                    if info.get("is_live") is not None:
+                        result["is_live"] = info["is_live"]
+                    return jsonify(result)
+            error_msg = getattr(source, '_error', '') or "Cannot read frames"
             source.release()
-            return jsonify({"ok": False, "error": "Cannot read frames"})
+            return jsonify({"ok": False, "error": error_msg})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        safe_error = str(e).encode("ascii", "replace").decode()
+        return jsonify({"ok": False, "error": safe_error}), 500
 
 
 @app.route("/api/start", methods=["POST"])
