@@ -130,31 +130,89 @@ class PlateOCR:
     def _extract_plate_text(
         self, crop: np.ndarray
     ) -> tuple[str, float] | None:
-        """Run OCR on a crop and find plate-like text."""
+        """Run OCR on a crop and find plate-like text.
+
+        Tries multiple strategies:
+        1. Single best OCR result matching plate pattern
+        2. Combine adjacent fragments into a full plate string
+        3. Try grayscale if color fails
+        """
+        result = self._try_ocr(crop)
+        if result:
+            return result
+        # Fallback: try grayscale
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        return self._try_ocr(gray)
+
+    def _try_ocr(
+        self, image: np.ndarray
+    ) -> tuple[str, float] | None:
+        """Run OCR and extract plate-like text."""
         try:
-            ocr_results = self._reader.readtext(crop, detail=1)
+            ocr_results = self._reader.readtext(image, detail=1)
         except Exception:
             return None
 
+        if not ocr_results:
+            return None
+
+        # Strategy 1: find single best plate-like result
         best: tuple[str, float] | None = None
         best_score = 0.0
 
         for _, text, conf in ocr_results:
+            if conf < 0.2:
+                continue
+            clean = self._normalize(text)
+            if self._is_plate_like(clean):
+                score = conf * len(clean)
+                if score > best_score:
+                    best = (clean, conf)
+                    best_score = score
+
+        if best:
+            return best
+
+        # Strategy 2: combine all fragments with decent confidence
+        fragments = []
+        total_conf = 0.0
+        for _, text, conf in ocr_results:
             if conf < 0.3:
                 continue
-            # Normalize: uppercase, strip spaces
-            clean = text.upper().strip().replace(" ", "")
-            # Must have at least 1 digit and 1 letter
-            has_digit = any(c.isdigit() for c in clean)
-            has_alpha = any(c.isalpha() for c in clean)
-            if not (has_digit and has_alpha):
-                continue
-            if len(clean) < 4 or len(clean) > 12:
-                continue
-            # Score: prefer longer plate-like strings with higher conf
-            score = conf * len(clean)
-            if score > best_score:
-                best = (clean, conf)
-                best_score = score
+            clean = self._normalize(text)
+            # Keep fragments with digits or short alpha
+            if any(c.isdigit() for c in clean) or (
+                len(clean) <= 3 and clean.isalpha()
+            ):
+                fragments.append(clean)
+                total_conf += conf
 
-        return best
+        if fragments:
+            combined = "".join(fragments)
+            avg_conf = total_conf / len(fragments)
+            if self._is_plate_like(combined):
+                return (combined, avg_conf)
+
+        return None
+
+    @staticmethod
+    def _normalize(text: str) -> str:
+        """Normalize OCR text for plate matching."""
+        clean = text.upper().strip()
+        # Remove common noise chars but keep hyphens/dots (plate separators)
+        clean = re.sub(r"[^A-Z0-9\-\.]", "", clean)
+        return clean
+
+    @staticmethod
+    def _is_plate_like(text: str) -> bool:
+        """Check if text looks like a license plate."""
+        if len(text) < 3 or len(text) > 14:
+            return False
+        has_digit = any(c.isdigit() for c in text)
+        if not has_digit:
+            return False
+        digit_count = sum(c.isdigit() for c in text)
+        # At least 3 digits for a plate
+        if digit_count < 3:
+            return False
+        return True
