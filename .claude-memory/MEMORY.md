@@ -7,6 +7,7 @@ Danh sách tất cả memory files trong dự án. Đọc file này đầu tiên
 
 ## Project
 - [project_init.md](project_init.md) - Khởi tạo dự án và quyết định ban đầu
+- [project_architecture.md](project_architecture.md) - Kiến trúc dự án: config, camera adapters, pipeline stubs, entry point
 
 ## Feedback
 - [feedback_workflow.md](feedback_workflow.md) - Mỗi thay đổi phải ghi memory + git commit, không được bỏ sót
