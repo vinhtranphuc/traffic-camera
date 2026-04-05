@@ -665,10 +665,18 @@
                     }).join(' &nbsp; ')
                     : `<span class="log-class">${d.class || '?'}</span>`;
 
+                // Plate info
+                let platesHtml = '';
+                if (d.plates && d.plates.length > 0) {
+                    platesHtml = d.plates.map(p =>
+                        `<span style="color:#00ffff;font-weight:700;background:#1a3a4a;padding:1px 6px;border-radius:3px;margin-left:6px">PLATE: ${p.text} (${(p.confidence*100).toFixed(0)}%)</span>`
+                    ).join('');
+                }
+
                 html += `<div class="log-entry">
                     <span class="log-time">${d.time}</span>
                     <span class="log-frame">F#${d.frame}</span>
-                    <span style="flex:1">${countsHtml}</span>
+                    <span style="flex:1">${countsHtml}${platesHtml}</span>
                     <span style="color:#8b949e">total: ${d.total || 0}</span>
                 </div>`;
             }

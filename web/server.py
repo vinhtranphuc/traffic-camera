@@ -17,7 +17,8 @@ import numpy as np
 import requests
 from flask import Flask, Response, jsonify, render_template, request
 
-from traffic_cam.pipeline.detector import Detection, VehicleDetector
+from traffic_cam.pipeline.detector import TRAFFIC_CLASS_IDS, Detection, VehicleDetector
+from traffic_cam.pipeline.ocr import PlateOCR, PlateResult
 from traffic_cam.sources.base import CameraSource
 from traffic_cam.sources.file_source import FileSource
 from traffic_cam.sources.mjpeg_source import MJPEGSource
@@ -35,10 +36,12 @@ app.json.ensure_ascii = False
 _active_source: CameraSource | None = None
 _source_lock = threading.Lock()
 _detector: VehicleDetector | None = None
+_ocr: PlateOCR | None = None
 
 _latest_frame: np.ndarray | None = None
 _frame_lock = threading.Lock()
 _last_detections: list[Detection] = []
+_last_plates: list[PlateResult] = []
 _detection_events: list[dict] = []
 _frame_count = 0
 _is_streaming = False
@@ -58,14 +61,16 @@ _COLORS = {
 
 
 def _init_detector() -> None:
-    """Initialize YOLO detector if not already loaded."""
-    global _detector
-    if _detector is not None and _detector.is_loaded:
-        return
-    _detector = VehicleDetector(
-        model_path="data/models/yolov8n.pt", confidence=0.3
-    )
-    _detector.load_model()
+    """Initialize YOLO detector and plate OCR if not already loaded."""
+    global _detector, _ocr
+    if _detector is None or not _detector.is_loaded:
+        _detector = VehicleDetector(
+            model_path="data/models/yolov8n.pt", confidence=0.3
+        )
+        _detector.load_model()
+    if _ocr is None or not _ocr.is_loaded:
+        _ocr = PlateOCR(langs=["en"])
+        _ocr.load_model()
 
 
 def _create_source(source_type: str, url: str, **kwargs) -> CameraSource:
@@ -103,8 +108,11 @@ def _stop_active_source() -> None:
 
 
 def _capture_loop() -> None:
-    """Background thread: read frames, run detection, render overlays."""
-    global _frame_count, _latest_frame, _last_detections
+    """Background thread: read frames, run detection + OCR, render overlays."""
+    global _frame_count, _latest_frame, _last_detections, _last_plates
+
+    # Vehicle class IDs for plate OCR
+    vehicle_cls = {2, 3, 5, 7}  # car, motorcycle, bus, truck
 
     while _is_streaming:
         with _source_lock:
@@ -124,30 +132,50 @@ def _capture_loop() -> None:
         if _detector and _detector.is_loaded and _frame_count % 3 == 0:
             detections = _detector.detect(frame)
             _last_detections = detections
+
+            # Run plate OCR every 9 frames (on vehicles only)
+            plates: list[PlateResult] = []
+            if _ocr and _ocr.is_loaded and _frame_count % 9 == 0:
+                veh_bboxes = [
+                    d.bbox for d in detections if d.class_id in vehicle_cls
+                ]
+                if veh_bboxes:
+                    plates = _ocr.read_plates(frame, veh_bboxes)
+                    _last_plates = plates
+
             if detections:
                 counts: dict[str, int] = {}
                 for det in detections:
                     counts[det.class_name] = counts.get(det.class_name, 0) + 1
                 summary = ", ".join(f"{c} {n}" for n, c in counts.items())
-                event = {
+                event: dict = {
                     "frame": _frame_count,
                     "time": time.strftime("%H:%M:%S"),
                     "type": "summary",
                     "summary": summary,
                     "counts": counts,
                     "total": len(detections),
-                    "details": [
-                        {
-                            "class": d.class_name,
-                            "confidence": round(d.confidence, 2),
-                            "bbox": list(d.bbox),
-                        }
-                        for d in detections
-                    ],
                 }
+                if plates:
+                    event["plates"] = [
+                        {"text": p.text, "confidence": round(p.confidence, 2)}
+                        for p in plates
+                    ]
                 _detection_events.append(event)
                 if len(_detection_events) > 500:
                     _detection_events.pop(0)
+
+            # Log plate-only events
+            if plates and not detections:
+                for p in plates:
+                    _detection_events.append({
+                        "frame": _frame_count,
+                        "time": time.strftime("%H:%M:%S"),
+                        "type": "plate",
+                        "plates": [
+                            {"text": p.text, "confidence": round(p.confidence, 2)}
+                        ],
+                    })
 
         # Draw detections on frame
         display = frame.copy()
@@ -167,6 +195,15 @@ def _capture_loop() -> None:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1,
             )
 
+        # Draw plate labels on vehicles
+        for plate in _last_plates:
+            x1, y1, x2, y2 = plate.vehicle_bbox
+            plate_label = f"PLATE: {plate.text}"
+            cv2.putText(
+                display, plate_label, (x1, y2 + 18),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2,
+            )
+
         # Overlay info
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
         cv2.putText(display, ts, (10, 25),
@@ -174,6 +211,10 @@ def _capture_loop() -> None:
         det_text = f"Detected: {len(_last_detections)} objects | Frame: {_frame_count}"
         cv2.putText(display, det_text, (10, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 200), 1)
+        if _last_plates:
+            plate_text = "Plates: " + ", ".join(p.text for p in _last_plates)
+            cv2.putText(display, plate_text, (10, 72),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
         # Encode and store
         _, jpeg = cv2.imencode(".jpg", display, [cv2.IMWRITE_JPEG_QUALITY, 80])
