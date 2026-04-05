@@ -8,6 +8,7 @@ Danh sách tất cả memory files trong dự án. Đọc file này đầu tiên
 ## Project
 - [project_init.md](project_init.md) - Khởi tạo dự án và quyết định ban đầu
 - [project_architecture.md](project_architecture.md) - Kiến trúc dự án: config, camera adapters, pipeline stubs, entry point
+- [project_web_ui.md](project_web_ui.md) - Web UI: Flask server + HTML frontend tại localhost:5555
 
 ## Feedback
 - [feedback_workflow.md](feedback_workflow.md) - Mỗi thay đổi phải ghi memory + git commit, không được bỏ sót

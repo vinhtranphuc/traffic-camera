@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Camera - Control Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f1117;
+            color: #e1e4e8;
+            min-height: 100vh;
+        }
+        header {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1 { font-size: 18px; font-weight: 600; }
+        header h1 span { color: #58a6ff; }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-badge.offline { background: #da3633; }
+        .status-badge.online { background: #238636; }
+        .status-badge.connecting { background: #d29922; }
+
+        .container {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 0;
+            height: calc(100vh - 49px);
+        }
+
+        /* --- Sidebar --- */
+        .sidebar {
+            background: #161b22;
+            border-right: 1px solid #30363d;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-section {
+            padding: 16px;
+            border-bottom: 1px solid #30363d;
+        }
+        .sidebar-section h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #8b949e;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Preset list */
+        .preset-group-label {
+            font-size: 11px;
+            color: #58a6ff;
+            margin: 10px 0 4px;
+            font-weight: 600;
+        }
+        .preset-group-label:first-child { margin-top: 0; }
+        .preset-item {
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .preset-item:hover { background: #21262d; }
+        .preset-item.active { background: #1f6feb33; border: 1px solid #1f6feb; }
+        .preset-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #8b949e;
+            flex-shrink: 0;
+        }
+        .preset-item.active .preset-dot { background: #58a6ff; }
+
+        /* Custom source form */
+        .form-group { margin-bottom: 10px; }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: #8b949e;
+            margin-bottom: 4px;
+        }
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 8px 10px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #e1e4e8;
+            font-size: 13px;
+        }
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-primary { background: #238636; color: #fff; }
+        .btn-primary:hover { background: #2ea043; }
+        .btn-danger { background: #da3633; color: #fff; }
+        .btn-danger:hover { background: #f85149; }
+        .btn-secondary { background: #21262d; color: #e1e4e8; border: 1px solid #30363d; }
+        .btn-secondary:hover { background: #30363d; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+
+        /* --- Main content --- */
+        .main {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Stream viewer */
+        .stream-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            position: relative;
+            min-height: 0;
+        }
+        .stream-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .stream-placeholder {
+            text-align: center;
+            color: #484f58;
+        }
+        .stream-placeholder svg {
+            width: 80px; height: 80px;
+            margin-bottom: 12px;
+            fill: #30363d;
+        }
+        .stream-placeholder p { font-size: 14px; }
+
+        /* Bottom panel */
+        .bottom-panel {
+            height: 200px;
+            min-height: 150px;
+            background: #161b22;
+            border-top: 1px solid #30363d;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-tabs {
+            display: flex;
+            border-bottom: 1px solid #30363d;
+            padding: 0 16px;
+        }
+        .panel-tab {
+            padding: 8px 16px;
+            font-size: 12px;
+            color: #8b949e;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+        }
+        .panel-tab:hover { color: #e1e4e8; }
+        .panel-tab.active {
+            color: #58a6ff;
+            border-bottom-color: #58a6ff;
+        }
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 16px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid #21262d;
+            display: flex;
+            gap: 12px;
+        }
+        .log-time { color: #8b949e; flex-shrink: 0; }
+        .log-frame { color: #d29922; flex-shrink: 0; width: 70px; }
+        .log-class { color: #58a6ff; flex-shrink: 0; width: 100px; }
+        .log-conf { color: #3fb950; flex-shrink: 0; width: 50px; }
+        .log-bbox { color: #8b949e; }
+
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            gap: 20px;
+            padding: 4px 16px;
+            align-items: center;
+        }
+        .stat {
+            font-size: 12px;
+            color: #8b949e;
+        }
+        .stat strong { color: #e1e4e8; }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            z-index: 999;
+            transition: opacity 0.3s;
+            max-width: 350px;
+        }
+        .toast.success { background: #238636; }
+        .toast.error { background: #da3633; }
+        .toast.hidden { opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><span>Traffic Camera</span> Control Panel</h1>
+        <div id="statusBadge" class="status-badge offline">OFFLINE</div>
+    </header>
+
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Preset cameras -->
+            <div class="sidebar-section" style="flex:1; overflow-y:auto;">
+                <h3>Camera Presets</h3>
+                <div id="presetList"></div>
+            </div>
+
+            <!-- Custom source -->
+            <div class="sidebar-section">
+                <h3>Custom Source</h3>
+                <div class="form-group">
+                    <label>Source Type</label>
+                    <select id="sourceType">
+                        <option value="snapshot">HTTP Snapshot</option>
+                        <option value="mjpeg">MJPEG Stream</option>
+                        <option value="rtsp">RTSP Stream</option>
+                        <option value="webcam">Webcam Device</option>
+                        <option value="file">Video File</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>URL / Path / Device Index</label>
+                    <input type="text" id="sourceUrl" placeholder="https://... or 0 for webcam">
+                </div>
+                <div class="form-group" id="intervalGroup">
+                    <label>Refresh Interval (seconds)</label>
+                    <input type="number" id="sourceInterval" value="2" min="0.5" max="30" step="0.5">
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-secondary" onclick="testConnect()">Test Connect</button>
+                    <button class="btn btn-primary" id="btnStart" onclick="startStream()">Start Stream</button>
+                    <button class="btn btn-danger" id="btnStop" onclick="stopStream()" disabled>Stop</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main -->
+        <div class="main">
+            <div class="stream-container">
+                <div id="streamPlaceholder" class="stream-placeholder">
+                    <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                    <p>Select a camera and click <strong>Start Stream</strong></p>
+                </div>
+                <img id="streamImg" src="" alt="Camera Stream" style="display:none;">
+            </div>
+
+            <div class="bottom-panel">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="panel-tabs">
+                        <div class="panel-tab active" onclick="switchTab('detections')">Detections</div>
+                        <div class="panel-tab" onclick="switchTab('log')">Event Log</div>
+                    </div>
+                    <div class="status-bar">
+                        <span class="stat">Frames: <strong id="statFrames">0</strong></span>
+                        <span class="stat">Detections: <strong id="statDetections">0</strong></span>
+                        <span class="stat">Source: <strong id="statSource">-</strong></span>
+                    </div>
+                </div>
+                <div id="panelContent" class="panel-content">
+                    <div style="color:#484f58; padding:20px; text-align:center;">
+                        No detection data yet. Start a camera stream to begin.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script>
+        let currentPreset = null;
+        let eventSource = null;
+        let isStreaming = false;
+        let detectionLog = [];
+
+        // --- Init ---
+        async function init() {
+            const resp = await fetch('/api/presets');
+            const presets = await resp.json();
+            renderPresets(presets);
+            startSSE();
+        }
+
+        // --- Presets ---
+        function renderPresets(presets) {
+            const container = document.getElementById('presetList');
+            let html = '';
+            let lastGroup = '';
+            for (const p of presets) {
+                if (p.group !== lastGroup) {
+                    html += `<div class="preset-group-label">${p.group}</div>`;
+                    lastGroup = p.group;
+                }
+                html += `<div class="preset-item" data-id="${p.id}" onclick="selectPreset(this, '${p.id}')">
+                    <div class="preset-dot"></div>
+                    <span>${p.name}</span>
+                </div>`;
+            }
+            container.innerHTML = html;
+            // Store presets globally
+            window._presets = presets;
+        }
+
+        function selectPreset(el, id) {
+            document.querySelectorAll('.preset-item').forEach(e => e.classList.remove('active'));
+            el.classList.add('active');
+            const preset = window._presets.find(p => p.id === id);
+            if (preset) {
+                currentPreset = preset;
+                document.getElementById('sourceType').value = preset.type;
+                document.getElementById('sourceUrl').value = preset.url;
+                document.getElementById('sourceInterval').value = preset.interval || 2;
+                updateIntervalVisibility();
+            }
+        }
+
+        // --- Source type change ---
+        document.getElementById('sourceType').addEventListener('change', updateIntervalVisibility);
+        function updateIntervalVisibility() {
+            const type = document.getElementById('sourceType').value;
+            document.getElementById('intervalGroup').style.display =
+                type === 'snapshot' ? 'block' : 'none';
+            // Update placeholder
+            const urlInput = document.getElementById('sourceUrl');
+            if (type === 'webcam') urlInput.placeholder = '0 (device index)';
+            else if (type === 'file') urlInput.placeholder = 'data/samples/test_video.mp4';
+            else if (type === 'rtsp') urlInput.placeholder = 'rtsp://user:pass@ip:554/stream';
+            else urlInput.placeholder = 'https://...';
+        }
+
+        // --- Test Connect ---
+        async function testConnect() {
+            const type = document.getElementById('sourceType').value;
+            const url = document.getElementById('sourceUrl').value;
+            if (!url) return showToast('Please enter a URL', 'error');
+
+            showToast('Testing connection...', 'success');
+            try {
+                const resp = await fetch('/api/test-connect', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({type, url}),
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    showToast(`Connected! ${data.message}`, 'success');
+                } else {
+                    showToast(`Failed: ${data.error}`, 'error');
+                }
+            } catch (e) {
+                showToast(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        // --- Start/Stop Stream ---
+        async function startStream() {
+            const type = document.getElementById('sourceType').value;
+            const url = document.getElementById('sourceUrl').value;
+            const interval = parseFloat(document.getElementById('sourceInterval').value) || 2;
+
+            if (!url) return showToast('Please enter a URL', 'error');
+
+            setBadge('connecting', 'CONNECTING...');
+            try {
+                const resp = await fetch('/api/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({type, url, interval}),
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    isStreaming = true;
+                    document.getElementById('streamImg').src = '/stream.mjpeg?' + Date.now();
+                    document.getElementById('streamImg').style.display = 'block';
+                    document.getElementById('streamPlaceholder').style.display = 'none';
+                    document.getElementById('btnStart').disabled = true;
+                    document.getElementById('btnStop').disabled = false;
+                    document.getElementById('statSource').textContent =
+                        data.source_info?.type || type;
+                    setBadge('online', 'LIVE');
+                    detectionLog = [];
+                    showToast('Stream started!', 'success');
+                } else {
+                    showToast(`Failed: ${data.error}`, 'error');
+                    setBadge('offline', 'OFFLINE');
+                }
+            } catch (e) {
+                showToast(`Error: ${e.message}`, 'error');
+                setBadge('offline', 'OFFLINE');
+            }
+        }
+
+        async function stopStream() {
+            await fetch('/api/stop', {method: 'POST'});
+            isStreaming = false;
+            document.getElementById('streamImg').style.display = 'none';
+            document.getElementById('streamImg').src = '';
+            document.getElementById('streamPlaceholder').style.display = 'flex';
+            document.getElementById('btnStart').disabled = false;
+            document.getElementById('btnStop').disabled = true;
+            setBadge('offline', 'OFFLINE');
+            showToast('Stream stopped', 'success');
+        }
+
+        // --- SSE ---
+        function startSSE() {
+            eventSource = new EventSource('/api/events');
+            eventSource.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.type === 'status') {
+                    document.getElementById('statFrames').textContent = data.frame_count;
+                    document.getElementById('statDetections').textContent = data.total_detections;
+                } else {
+                    detectionLog.push(data);
+                    if (detectionLog.length > 200) detectionLog.shift();
+                    updateDetectionPanel();
+                }
+            };
+        }
+
+        // --- Panels ---
+        let activeTab = 'detections';
+        function switchTab(tab) {
+            activeTab = tab;
+            document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            updateDetectionPanel();
+        }
+
+        function updateDetectionPanel() {
+            const panel = document.getElementById('panelContent');
+            if (detectionLog.length === 0) {
+                panel.innerHTML = `<div style="color:#484f58; padding:20px; text-align:center;">
+                    ${isStreaming ? 'Waiting for detections... (detector model not loaded yet)' : 'No detection data yet. Start a camera stream to begin.'}
+                </div>`;
+                return;
+            }
+            let html = '';
+            const items = [...detectionLog].reverse();
+            for (const d of items) {
+                html += `<div class="log-entry">
+                    <span class="log-time">${d.time}</span>
+                    <span class="log-frame">F#${d.frame}</span>
+                    <span class="log-class">${d.class}</span>
+                    <span class="log-conf">${(d.confidence * 100).toFixed(0)}%</span>
+                    <span class="log-bbox">[${d.bbox.join(', ')}]</span>
+                </div>`;
+            }
+            panel.innerHTML = html;
+        }
+
+        // --- Helpers ---
+        function setBadge(cls, text) {
+            const badge = document.getElementById('statusBadge');
+            badge.className = 'status-badge ' + cls;
+            badge.textContent = text;
+        }
+
+        function showToast(msg, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast ' + type;
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        // Init on load
+        init();
+    </script>
+</body>
+</html>
