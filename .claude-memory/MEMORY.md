@@ -15,3 +15,4 @@ Danh sách tất cả memory files trong dự án. Đọc file này đầu tiên
 ## Decisions
 
 ## References
+- [project_public_cameras.md](project_public_cameras.md) - Danh sách API camera giao thông công cộng: Caltrans, TfL, VDOT, 511NY, MnDOT

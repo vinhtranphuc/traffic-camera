@@ -6,6 +6,7 @@ from .base import CameraSource
 from .file_source import FileSource
 from .mjpeg_source import MJPEGSource
 from .rtsp_source import RTSPSource
+from .snapshot_source import SnapshotSource
 from .webcam_source import WebcamSource
 
 _SOURCE_MAP: dict[str, type[CameraSource]] = {
@@ -13,6 +14,7 @@ _SOURCE_MAP: dict[str, type[CameraSource]] = {
     "file": FileSource,
     "rtsp": RTSPSource,
     "webcam": WebcamSource,
+    "snapshot": SnapshotSource,
 }
 
 
@@ -38,4 +40,6 @@ def create_source(config: BaseConfig) -> CameraSource:
         return WebcamSource(device_index)
     if source_cls is FileSource:
         return FileSource(config.CAMERA_URL, loop=True)
+    if source_cls is SnapshotSource:
+        return SnapshotSource(config.CAMERA_URL, interval=2.0)
     return source_cls(config.CAMERA_URL)
