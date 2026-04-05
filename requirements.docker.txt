@@ -7,7 +7,7 @@ requests>=2.31.0,<3
 flask>=3.0.0,<4
 waitress>=3.0.0,<4
 
-# Detection & OCR (CPU-only torch installed separately in Dockerfile)
+# Detection & OCR (torch already installed as CPU-only in Dockerfile)
 ultralytics>=8.0.0
 easyocr>=1.7.0
 

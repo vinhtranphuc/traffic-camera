@@ -7,40 +7,43 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# Install PyTorch CPU first (avoids pulling CUDA)
+# 1) Install PyTorch CPU-only
 RUN pip install --no-cache-dir --prefix=/install \
-    torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    torch==2.2.0+cpu torchvision==0.17.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
 
-# Install remaining deps
-COPY requirements.docker.txt requirements.txt
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+# 2) Install all deps (constraints prevent torch re-download)
+COPY requirements.docker.txt constraints.txt ./
+RUN PIP_PREFIX=/install \
+    PYTHONPATH=/install/lib/python3.10/site-packages \
+    pip install --no-cache-dir --prefix=/install \
+    --default-timeout=300 --retries=3 \
+    -c constraints.txt -r requirements.docker.txt
+
+# 3) Swap opencv-python -> headless (ultralytics pulls non-headless)
+RUN pip install --no-cache-dir --prefix=/install \
+    --default-timeout=300 \
+    opencv-python-headless \
+    && rm -rf /install/lib/python3.10/site-packages/cv2/qt 2>/dev/null || true
 
 
 # === Stage 2: Runtime image ===
 FROM python:3.10-slim
 
-# System libraries for OpenCV + ffmpeg for YouTube/HLS streams
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 libgl1 libsm6 libxext6 libxrender1 \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m -s /bin/bash appuser
 
-# Copy Python packages from builder
 COPY --from=builder /install /usr/local
 
 WORKDIR /app
 
-# Copy source code (order: least → most frequently changed)
-COPY web/camera_presets.py web/camera_presets.py
-COPY web/__init__.py web/__init__.py
-COPY web/templates/ web/templates/
-COPY web/static/ web/static/
 COPY traffic_cam/ traffic_cam/
-COPY web/server.py web/server.py
+COPY web/ web/
 COPY main.py run_web.py ./
 
-# Create data dirs (mounted as volumes at runtime)
 RUN mkdir -p data/models data/samples data/logs \
     && chown -R appuser:appuser /app
 
