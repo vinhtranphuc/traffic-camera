@@ -391,8 +391,9 @@
                 <div class="form-group">
                     <label>Stream Mode</label>
                     <select id="streamMode">
-                        <option value="view">View Only (no detection)</option>
+                        <option value="view">View Only</option>
                         <option value="detect" selected>Detect Vehicles</option>
+                        <option value="ocr">Plate OCR Only</option>
                         <option value="full">Full (Detect + Plate OCR)</option>
                     </select>
                 </div>
@@ -600,7 +601,7 @@
                     document.getElementById('btnStop').disabled = false;
                     document.getElementById('statSource').textContent =
                         data.source_info?.type || type;
-                    const modeLabels = {view: 'LIVE', detect: 'LIVE+DETECT', full: 'LIVE+DETECT+OCR'};
+                    const modeLabels = {view: 'LIVE', detect: 'LIVE+DETECT', ocr: 'LIVE+OCR', full: 'LIVE+DETECT+OCR'};
                     setBadge('online', modeLabels[mode] || 'LIVE');
                     detectionLog = [];
                     showToast('Stream started! Mode: ' + (modeLabels[mode] || mode), 'success');

@@ -130,14 +130,16 @@ def _capture_loop() -> None:
         frame = resize_frame(frame, 800)
 
         # Run detection every 3 frames (skip in "view" mode)
-        run_detect = _stream_mode in ("detect", "full")
-        run_ocr = _stream_mode == "full"
+        run_detect = _stream_mode in ("detect", "full", "ocr")
+        run_ocr = _stream_mode in ("full", "ocr")
+        show_detect = _stream_mode in ("detect", "full")
 
         if run_detect and _detector and _detector.is_loaded and _frame_count % 3 == 0:
             detections = _detector.detect(frame)
-            _last_detections = detections
+            if show_detect:
+                _last_detections = detections
 
-            # Run plate OCR every 9 frames (only in "full" mode)
+            # Run plate OCR every 9 frames
             plates: list[PlateResult] = []
             if run_ocr and _ocr and _ocr.is_loaded and _frame_count % 9 == 0:
                 veh_bboxes = [
@@ -147,7 +149,7 @@ def _capture_loop() -> None:
                     plates = _ocr.read_plates(frame, veh_bboxes)
                     _last_plates = plates
 
-            if detections:
+            if show_detect and detections:
                 counts: dict[str, int] = {}
                 for det in detections:
                     counts[det.class_name] = counts.get(det.class_name, 0) + 1
@@ -169,21 +171,24 @@ def _capture_loop() -> None:
                 if len(_detection_events) > 500:
                     _detection_events.pop(0)
 
-            # Log plate-only events
-            if plates and not detections:
-                for p in plates:
-                    _detection_events.append({
-                        "frame": _frame_count,
-                        "time": time.strftime("%H:%M:%S"),
-                        "type": "plate",
-                        "plates": [
-                            {"text": p.text, "confidence": round(p.confidence, 2)}
-                        ],
-                    })
+            # Log plate-only events (ocr mode or plates without detect log)
+            if plates and not show_detect:
+                _detection_events.append({
+                    "frame": _frame_count,
+                    "time": time.strftime("%H:%M:%S"),
+                    "type": "plate",
+                    "total": 0,
+                    "plates": [
+                        {"text": p.text, "confidence": round(p.confidence, 2)}
+                        for p in plates
+                    ],
+                })
+                if len(_detection_events) > 500:
+                    _detection_events.pop(0)
 
-        # Draw detections on frame
+        # Draw detections on frame (skip in view/ocr mode)
         display = frame.copy()
-        for det in _last_detections:
+        for det in (_last_detections if show_detect else []):
             x1, y1, x2, y2 = det.bbox
             color = _COLORS.get(det.class_name, (0, 255, 0))
             cv2.rectangle(display, (x1, y1), (x2, y2), color, 2)
@@ -317,7 +322,7 @@ def api_start():
             error_msg = getattr(source, '_error', '') or "Failed to connect"
             return jsonify({"ok": False, "error": error_msg})
 
-        if _stream_mode != "view":
+        if _stream_mode in ("detect", "full", "ocr"):
             _init_detector()
 
         with _source_lock:
