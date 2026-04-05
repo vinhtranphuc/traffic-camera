@@ -44,6 +44,8 @@ class YouTubeSource(CameraSource):
             return False
 
         self._cap = cv2.VideoCapture(self._stream_url)
+        # Reduce latency for live streams
+        self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if not self._cap.isOpened():
             self._error = "OpenCV failed to open stream"
             logger.error("[YouTubeSource] %s", self._error)

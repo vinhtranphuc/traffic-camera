@@ -645,19 +645,31 @@
             const panel = document.getElementById('panelContent');
             if (detectionLog.length === 0) {
                 panel.innerHTML = `<div style="color:#484f58; padding:20px; text-align:center;">
-                    ${isStreaming ? 'Waiting for detections... (detector model not loaded yet)' : 'No detection data yet. Start a camera stream to begin.'}
+                    ${isStreaming ? 'Detecting vehicles... waiting for results' : 'No detection data yet. Start a camera stream to begin.'}
                 </div>`;
                 return;
             }
             let html = '';
             const items = [...detectionLog].reverse();
             for (const d of items) {
+                // Summary format: "3 car, 2 motorcycle"
+                const countsHtml = d.counts
+                    ? Object.entries(d.counts).map(([cls, cnt]) => {
+                        const colorMap = {
+                            car:'#3fb950', motorcycle:'#d29922', bus:'#58a6ff',
+                            truck:'#f47067', person:'#e0e000', bicycle:'#ff55ff',
+                            'traffic light':'#ffff00', 'stop sign':'#ff4444'
+                        };
+                        const color = colorMap[cls] || '#8b949e';
+                        return `<span style="color:${color};font-weight:500">${cnt} ${cls}</span>`;
+                    }).join(' &nbsp; ')
+                    : `<span class="log-class">${d.class || '?'}</span>`;
+
                 html += `<div class="log-entry">
                     <span class="log-time">${d.time}</span>
                     <span class="log-frame">F#${d.frame}</span>
-                    <span class="log-class">${d.class}</span>
-                    <span class="log-conf">${(d.confidence * 100).toFixed(0)}%</span>
-                    <span class="log-bbox">[${d.bbox.join(', ')}]</span>
+                    <span style="flex:1">${countsHtml}</span>
+                    <span style="color:#8b949e">total: ${d.total || 0}</span>
                 </div>`;
             }
             panel.innerHTML = html;

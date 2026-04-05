@@ -1,8 +1,9 @@
 """Flask web server for Traffic Camera UI.
 
 Provides:
+- Background capture + detection thread
 - MJPEG streaming endpoint for live camera view
-- REST API for camera presets, connection testing, detection results
+- REST API for camera presets, connection testing
 - SSE endpoint for real-time detection events
 """
 
@@ -25,27 +26,53 @@ from traffic_cam.sources.snapshot_source import SnapshotSource
 from traffic_cam.sources.webcam_source import WebcamSource
 from traffic_cam.sources.youtube_source import YouTubeSource
 from traffic_cam.utils.helpers import resize_frame
-from web.camera_presets import get_preset_by_id, get_presets
+from web.camera_presets import get_presets
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.json.ensure_ascii = False
 
-# Global state
+# --- Global state ---
 _active_source: CameraSource | None = None
-_active_lock = threading.Lock()
-_detector = VehicleDetector()
+_source_lock = threading.Lock()
+_detector: VehicleDetector | None = None
+
+_latest_frame: np.ndarray | None = None
+_frame_lock = threading.Lock()
 _last_detections: list[Detection] = []
 _detection_events: list[dict] = []
 _frame_count = 0
 _is_streaming = False
+_capture_thread: threading.Thread | None = None
+
+# Color map per class (BGR)
+_COLORS = {
+    "car": (0, 255, 0),
+    "motorcycle": (0, 200, 255),
+    "bus": (255, 100, 0),
+    "truck": (0, 100, 255),
+    "person": (255, 255, 0),
+    "bicycle": (255, 0, 255),
+    "traffic light": (0, 255, 255),
+    "stop sign": (0, 0, 255),
+}
+
+
+def _init_detector() -> None:
+    """Initialize YOLO detector if not already loaded."""
+    global _detector
+    if _detector is not None and _detector.is_loaded:
+        return
+    _detector = VehicleDetector(
+        model_path="data/models/yolov8n.pt", confidence=0.3
+    )
+    _detector.load_model()
 
 
 def _create_source(source_type: str, url: str, **kwargs) -> CameraSource:
     """Create a camera source from type and URL."""
     match source_type:
         case "snapshot":
-            interval = kwargs.get("interval", 2.0)
-            return SnapshotSource(url, interval=interval)
+            return SnapshotSource(url, interval=kwargs.get("interval", 2.0))
         case "mjpeg":
             return MJPEGSource(url)
         case "rtsp":
@@ -53,8 +80,7 @@ def _create_source(source_type: str, url: str, **kwargs) -> CameraSource:
         case "file":
             return FileSource(url, loop=True)
         case "webcam":
-            device_index = int(url) if url.isdigit() else 0
-            return WebcamSource(device_index)
+            return WebcamSource(int(url) if url.isdigit() else 0)
         case "youtube":
             return YouTubeSource(url)
         case _:
@@ -63,26 +89,109 @@ def _create_source(source_type: str, url: str, **kwargs) -> CameraSource:
 
 def _stop_active_source() -> None:
     """Stop and release the currently active source."""
-    global _active_source, _is_streaming, _frame_count
-    with _active_lock:
+    global _active_source, _is_streaming, _frame_count, _latest_frame
+    _is_streaming = False
+    # Wait for capture thread to finish
+    if _capture_thread and _capture_thread.is_alive():
+        _capture_thread.join(timeout=3)
+    with _source_lock:
         if _active_source is not None:
-            _is_streaming = False
             _active_source.release()
             _active_source = None
-            _frame_count = 0
+    _frame_count = 0
+    _latest_frame = None
+
+
+def _capture_loop() -> None:
+    """Background thread: read frames, run detection, render overlays."""
+    global _frame_count, _latest_frame, _last_detections
+
+    while _is_streaming:
+        with _source_lock:
+            source = _active_source
+        if source is None:
+            break
+
+        ret, frame = source.read_frame()
+        if not ret or frame is None:
+            time.sleep(0.05)
+            continue
+
+        _frame_count += 1
+        frame = resize_frame(frame, 800)
+
+        # Run detection every 3 frames
+        if _detector and _detector.is_loaded and _frame_count % 3 == 0:
+            detections = _detector.detect(frame)
+            _last_detections = detections
+            if detections:
+                counts: dict[str, int] = {}
+                for det in detections:
+                    counts[det.class_name] = counts.get(det.class_name, 0) + 1
+                summary = ", ".join(f"{c} {n}" for n, c in counts.items())
+                event = {
+                    "frame": _frame_count,
+                    "time": time.strftime("%H:%M:%S"),
+                    "type": "summary",
+                    "summary": summary,
+                    "counts": counts,
+                    "total": len(detections),
+                    "details": [
+                        {
+                            "class": d.class_name,
+                            "confidence": round(d.confidence, 2),
+                            "bbox": list(d.bbox),
+                        }
+                        for d in detections
+                    ],
+                }
+                _detection_events.append(event)
+                if len(_detection_events) > 500:
+                    _detection_events.pop(0)
+
+        # Draw detections on frame
+        display = frame.copy()
+        for det in _last_detections:
+            x1, y1, x2, y2 = det.bbox
+            color = _COLORS.get(det.class_name, (0, 255, 0))
+            cv2.rectangle(display, (x1, y1), (x2, y2), color, 2)
+            label = f"{det.class_name} {det.confidence:.0%}"
+            (tw, th), _ = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
+            )
+            cv2.rectangle(
+                display, (x1, y1 - th - 8), (x1 + tw + 4, y1), color, -1
+            )
+            cv2.putText(
+                display, label, (x1 + 2, y1 - 4),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1,
+            )
+
+        # Overlay info
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        cv2.putText(display, ts, (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        det_text = f"Detected: {len(_last_detections)} objects | Frame: {_frame_count}"
+        cv2.putText(display, det_text, (10, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 200), 1)
+
+        # Encode and store
+        _, jpeg = cv2.imencode(".jpg", display, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        with _frame_lock:
+            _latest_frame = jpeg.tobytes()
+
+        time.sleep(0.03)
 
 
 # --- Routes ---
 
 @app.route("/")
 def index():
-    """Serve the main UI page."""
     return render_template("index.html")
 
 
 @app.route("/api/presets")
 def api_presets():
-    """Return list of available camera presets."""
     return jsonify(get_presets())
 
 
@@ -108,7 +217,6 @@ def api_test_connect():
                         "ok": True,
                         "message": f"Connected! Image: {w}x{h}",
                         "width": w, "height": h,
-                        "size_kb": len(resp.content) // 1024,
                     })
             return jsonify({"ok": False, "error": f"HTTP {resp.status_code}"})
         else:
@@ -141,7 +249,8 @@ def api_test_connect():
 @app.route("/api/start", methods=["POST"])
 def api_start():
     """Start streaming from a camera source."""
-    global _active_source, _is_streaming, _detection_events, _last_detections
+    global _active_source, _is_streaming, _detection_events
+    global _last_detections, _capture_thread
 
     _stop_active_source()
     _detection_events = []
@@ -158,84 +267,56 @@ def api_start():
     try:
         source = _create_source(source_type, url, interval=interval)
         if not source.connect():
-            return jsonify({"ok": False, "error": "Failed to connect"})
+            error_msg = getattr(source, '_error', '') or "Failed to connect"
+            return jsonify({"ok": False, "error": error_msg})
 
-        with _active_lock:
+        _init_detector()
+
+        with _source_lock:
             _active_source = source
             _is_streaming = True
 
-        return jsonify({"ok": True, "source_info": source.source_info})
+        # Start background capture + detection thread
+        _capture_thread = threading.Thread(
+            target=_capture_loop, daemon=True
+        )
+        _capture_thread.start()
+
+        info = source.source_info
+        info_safe = {}
+        for k, v in info.items():
+            if isinstance(v, str):
+                info_safe[k] = v.encode("ascii", "replace").decode()
+            else:
+                info_safe[k] = v
+        return jsonify({"ok": True, "source_info": info_safe})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        safe_error = str(e).encode("ascii", "replace").decode()
+        return jsonify({"ok": False, "error": safe_error}), 500
 
 
 @app.route("/api/stop", methods=["POST"])
 def api_stop():
-    """Stop the active camera stream."""
     _stop_active_source()
     return jsonify({"ok": True})
 
 
 @app.route("/stream.mjpeg")
 def stream_mjpeg():
-    """MJPEG video stream endpoint."""
+    """MJPEG stream - reads latest processed frame from capture thread."""
     def generate() -> Generator[bytes, None, None]:
-        global _frame_count, _last_detections
         while _is_streaming:
-            with _active_lock:
-                source = _active_source
-            if source is None:
-                break
-
-            ret, frame = source.read_frame()
-            if not ret or frame is None:
-                time.sleep(0.1)
+            with _frame_lock:
+                jpeg_bytes = _latest_frame
+            if jpeg_bytes is None:
+                time.sleep(0.05)
                 continue
-
-            _frame_count += 1
-            frame = resize_frame(frame, 800)
-
-            # Run detection every 3 frames
-            if _frame_count % 3 == 0:
-                detections = _detector.detect(frame)
-                _last_detections = detections
-                if detections:
-                    for det in detections:
-                        event = {
-                            "frame": _frame_count,
-                            "time": time.strftime("%H:%M:%S"),
-                            "class": det.class_name,
-                            "confidence": round(det.confidence, 2),
-                            "bbox": list(det.bbox),
-                        }
-                        _detection_events.append(event)
-                        if len(_detection_events) > 200:
-                            _detection_events.pop(0)
-
-            # Draw detections on frame
-            for det in _last_detections:
-                x1, y1, x2, y2 = det.bbox
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                label = f"{det.class_name} {det.confidence:.2f}"
-                cv2.putText(frame, label, (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-            # Add timestamp overlay
-            ts = time.strftime("%Y-%m-%d %H:%M:%S")
-            cv2.putText(frame, ts, (10, 25),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            cv2.putText(frame, f"Frame: {_frame_count}", (10, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
-
-            _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
             yield (
                 b"--frame\r\n"
                 b"Content-Type: image/jpeg\r\n\r\n"
-                + jpeg.tobytes()
+                + jpeg_bytes
                 + b"\r\n"
             )
-
-            # Control frame rate
             time.sleep(0.03)
 
     return Response(
@@ -257,7 +338,6 @@ def api_events():
                     yield f"data: {json.dumps(evt)}\n\n"
                 last_idx = current_len
 
-            # Send heartbeat with stream status
             status = {
                 "type": "status",
                 "streaming": _is_streaming,
@@ -268,23 +348,6 @@ def api_events():
             time.sleep(1)
 
     return Response(event_stream(), mimetype="text/event-stream")
-
-
-@app.route("/api/snapshot")
-def api_snapshot():
-    """Get a single snapshot from the active source."""
-    with _active_lock:
-        source = _active_source
-    if source is None:
-        return jsonify({"error": "No active source"}), 400
-
-    ret, frame = source.read_frame()
-    if not ret or frame is None:
-        return jsonify({"error": "Failed to read frame"}), 500
-
-    frame = resize_frame(frame, 800)
-    _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
-    return Response(jpeg.tobytes(), mimetype="image/jpeg")
 
 
 def run_server(host: str = "0.0.0.0", port: int = 5555, debug: bool = False) -> None:
