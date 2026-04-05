@@ -46,6 +46,7 @@ _detection_events: list[dict] = []
 _frame_count = 0
 _is_streaming = False
 _capture_thread: threading.Thread | None = None
+_stream_mode: str = "detect"  # "view" | "detect" | "full"
 
 # Color map per class (BGR)
 _COLORS = {
@@ -128,14 +129,17 @@ def _capture_loop() -> None:
         _frame_count += 1
         frame = resize_frame(frame, 800)
 
-        # Run detection every 3 frames
-        if _detector and _detector.is_loaded and _frame_count % 3 == 0:
+        # Run detection every 3 frames (skip in "view" mode)
+        run_detect = _stream_mode in ("detect", "full")
+        run_ocr = _stream_mode == "full"
+
+        if run_detect and _detector and _detector.is_loaded and _frame_count % 3 == 0:
             detections = _detector.detect(frame)
             _last_detections = detections
 
-            # Run plate OCR every 9 frames (on vehicles only)
+            # Run plate OCR every 9 frames (only in "full" mode)
             plates: list[PlateResult] = []
-            if _ocr and _ocr.is_loaded and _frame_count % 9 == 0:
+            if run_ocr and _ocr and _ocr.is_loaded and _frame_count % 9 == 0:
                 veh_bboxes = [
                     d.bbox for d in detections if d.class_id in vehicle_cls
                 ]
@@ -291,16 +295,18 @@ def api_test_connect():
 def api_start():
     """Start streaming from a camera source."""
     global _active_source, _is_streaming, _detection_events
-    global _last_detections, _capture_thread
+    global _last_detections, _last_plates, _capture_thread, _stream_mode
 
     _stop_active_source()
     _detection_events = []
     _last_detections = []
+    _last_plates = []
 
     data = request.json
     source_type = data.get("type", "snapshot")
     url = data.get("url", "")
     interval = data.get("interval", 2.0)
+    _stream_mode = data.get("mode", "detect")  # view | detect | full
 
     if not url:
         return jsonify({"ok": False, "error": "URL is required"}), 400
@@ -311,7 +317,8 @@ def api_start():
             error_msg = getattr(source, '_error', '') or "Failed to connect"
             return jsonify({"ok": False, "error": error_msg})
 
-        _init_detector()
+        if _stream_mode != "view":
+            _init_detector()
 
         with _source_lock:
             _active_source = source
