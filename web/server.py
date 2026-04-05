@@ -66,7 +66,7 @@ def _init_detector() -> None:
     global _detector, _ocr
     if _detector is None or not _detector.is_loaded:
         _detector = VehicleDetector(
-            model_path="data/models/yolov8n.pt", confidence=0.3
+            model_path="data/models/yolov8n.pt", confidence=0.25
         )
         _detector.load_model()
     if _ocr is None or not _ocr.is_loaded:
@@ -127,9 +127,8 @@ def _capture_loop() -> None:
             continue
 
         _frame_count += 1
-        frame = resize_frame(frame, 800)
 
-        # Run detection every 3 frames (skip in "view" mode)
+        # Run detection/OCR on FULL resolution frame, resize only for display
         run_detect = _stream_mode in ("detect", "full", "ocr")
         run_ocr = _stream_mode in ("full", "ocr")
         show_detect = _stream_mode in ("detect", "full")
@@ -186,38 +185,47 @@ def _capture_loop() -> None:
                 if len(_detection_events) > 500:
                     _detection_events.pop(0)
 
-        # Draw detections on frame (skip in view/ocr mode)
-        display = frame.copy()
+        # Resize for display
+        display = resize_frame(frame, 960)
+        orig_h, orig_w = frame.shape[:2]
+        disp_h, disp_w = display.shape[:2]
+        sx, sy = disp_w / orig_w, disp_h / orig_h
+
+        # Draw detections (skip in view/ocr mode)
         for det in (_last_detections if show_detect else []):
             x1, y1, x2, y2 = det.bbox
+            dx1, dy1 = int(x1 * sx), int(y1 * sy)
+            dx2, dy2 = int(x2 * sx), int(y2 * sy)
             color = _COLORS.get(det.class_name, (0, 255, 0))
-            cv2.rectangle(display, (x1, y1), (x2, y2), color, 2)
+            cv2.rectangle(display, (dx1, dy1), (dx2, dy2), color, 2)
             label = f"{det.class_name} {det.confidence:.0%}"
             (tw, th), _ = cv2.getTextSize(
                 label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
             )
             cv2.rectangle(
-                display, (x1, y1 - th - 8), (x1 + tw + 4, y1), color, -1
+                display, (dx1, dy1 - th - 8), (dx1 + tw + 4, dy1), color, -1
             )
             cv2.putText(
-                display, label, (x1 + 2, y1 - 4),
+                display, label, (dx1 + 2, dy1 - 4),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1,
             )
 
-        # Draw plate labels on vehicles
+        # Draw plate labels
         for plate in _last_plates:
             x1, y1, x2, y2 = plate.vehicle_bbox
+            dx1, dy2 = int(x1 * sx), int(y2 * sy)
             plate_label = f"PLATE: {plate.text}"
             cv2.putText(
-                display, plate_label, (x1, y2 + 18),
+                display, plate_label, (dx1, dy2 + 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2,
             )
 
         # Overlay info
+        n_det = len(_last_detections) if show_detect else 0
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
         cv2.putText(display, ts, (10, 25),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        det_text = f"Detected: {len(_last_detections)} objects | Frame: {_frame_count}"
+        det_text = f"Detected: {n_det} objects | Frame: {_frame_count}"
         cv2.putText(display, det_text, (10, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 200), 1)
         if _last_plates:

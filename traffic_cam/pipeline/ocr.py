@@ -86,22 +86,16 @@ class PlateOCR:
             x2, y2 = min(w_frame, x2), min(h_frame, y2)
 
             bw, bh = x2 - x1, y2 - y1
-            if bw < 30 or bh < 20:
+            if bw < 20 or bh < 15:
                 continue
 
-            # Crop lower 60% of vehicle (plates are usually bottom)
-            crop_y1 = y1 + int(bh * 0.4)
-            crop = frame[crop_y1:y2, x1:x2]
+            # Crop full vehicle (plates can be anywhere depending on angle)
+            crop = frame[y1:y2, x1:x2]
             if crop.size == 0:
                 continue
 
-            # Preprocess: resize up if too small, convert to gray
-            if crop.shape[1] < 200:
-                scale = 200 / crop.shape[1]
-                crop = cv2.resize(
-                    crop, None, fx=scale, fy=scale,
-                    interpolation=cv2.INTER_CUBIC,
-                )
+            # Preprocess for better OCR
+            crop = self._preprocess(crop)
 
             plate = self._extract_plate_text(crop)
             if plate:
@@ -111,6 +105,27 @@ class PlateOCR:
                 ))
 
         return results
+
+    @staticmethod
+    def _preprocess(crop: np.ndarray) -> np.ndarray:
+        """Preprocess vehicle crop for better OCR accuracy."""
+        # Upscale small crops
+        if crop.shape[1] < 200:
+            scale = 200 / crop.shape[1]
+            crop = cv2.resize(
+                crop, None, fx=scale, fy=scale,
+                interpolation=cv2.INTER_CUBIC,
+            )
+        # Enhance contrast (helps with night / low-light scenes)
+        lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        l = clahe.apply(l)
+        crop = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+        # Sharpen
+        kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+        crop = cv2.filter2D(crop, -1, kernel)
+        return crop
 
     def _extract_plate_text(
         self, crop: np.ndarray
