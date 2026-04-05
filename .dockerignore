@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist
+build
+
+# Virtual env
+venv
+.venv
+env
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Data (mounted as volumes)
+data/models/*
+data/samples/*
+data/logs/*
+
+# Dev/debug files
+.env
+.env.local
+Capture.PNG
+*.pt
+*.onnx
+*.weights
+
+# Memory & config
+.claude
+.claude-memory
+prompts
+
+# Tests (not needed in production image)
+tests

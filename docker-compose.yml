@@ -1,0 +1,24 @@
+services:
+  traffic-camera:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: traffic-camera
+    restart: unless-stopped
+    ports:
+      - "5556:5556"
+    volumes:
+      # YOLO model weights (persist across rebuilds)
+      - ./data/models:/app/data/models
+      # Sample videos for testing
+      - ./data/samples:/app/data/samples
+      # Detection event logs
+      - ./data/logs:/app/data/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5556/api/presets', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
