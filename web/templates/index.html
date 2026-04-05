@@ -111,6 +111,28 @@
             border-color: #58a6ff;
         }
 
+        /* Source-specific form fields */
+        .source-fields { margin-top: 4px; }
+        .form-row { display: flex; gap: 8px; }
+        .url-preview {
+            background: #0d1117 !important;
+            color: #8b949e !important;
+            font-family: 'Consolas', monospace;
+            font-size: 11px !important;
+        }
+        .checkbox-label {
+            display: flex !important;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #e1e4e8 !important;
+            cursor: pointer;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: auto;
+            accent-color: #58a6ff;
+        }
+
         /* Buttons */
         .btn {
             padding: 8px 16px;
@@ -262,24 +284,95 @@
                 <h3>Custom Source</h3>
                 <div class="form-group">
                     <label>Source Type</label>
-                    <select id="sourceType">
-                        <option value="snapshot">HTTP Snapshot</option>
+                    <select id="sourceType" onchange="onSourceTypeChange()">
+                        <option value="snapshot">HTTP Snapshot (Caltrans, TfL...)</option>
                         <option value="mjpeg">MJPEG Stream</option>
-                        <option value="rtsp">RTSP Stream</option>
-                        <option value="webcam">Webcam Device</option>
+                        <option value="rtsp">RTSP Stream (IP Camera)</option>
+                        <option value="webcam">Webcam / USB Camera</option>
                         <option value="file">Video File</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>URL / Path / Device Index</label>
-                    <input type="text" id="sourceUrl" placeholder="https://... or 0 for webcam">
+
+                <!-- Snapshot fields -->
+                <div id="fields-snapshot" class="source-fields">
+                    <div class="form-group">
+                        <label>Image URL</label>
+                        <input type="text" id="snapshot-url" placeholder="https://cwwp2.dot.ca.gov/.../camera.jpg">
+                    </div>
+                    <div class="form-group">
+                        <label>Refresh Interval (seconds)</label>
+                        <input type="number" id="snapshot-interval" value="2" min="0.5" max="30" step="0.5">
+                    </div>
                 </div>
-                <div class="form-group" id="intervalGroup">
-                    <label>Refresh Interval (seconds)</label>
-                    <input type="number" id="sourceInterval" value="2" min="0.5" max="30" step="0.5">
+
+                <!-- MJPEG fields -->
+                <div id="fields-mjpeg" class="source-fields" style="display:none;">
+                    <div class="form-group">
+                        <label>Stream URL</label>
+                        <input type="text" id="mjpeg-url" placeholder="http://camera-ip/mjpg/video.mjpg">
+                    </div>
                 </div>
+
+                <!-- RTSP fields -->
+                <div id="fields-rtsp" class="source-fields" style="display:none;">
+                    <div class="form-group">
+                        <label>Host / IP</label>
+                        <input type="text" id="rtsp-host" placeholder="192.168.1.100">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1;">
+                            <label>Port</label>
+                            <input type="number" id="rtsp-port" value="554" min="1" max="65535">
+                        </div>
+                        <div class="form-group" style="flex:2;">
+                            <label>Path</label>
+                            <input type="text" id="rtsp-path" value="/stream" placeholder="/stream">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1;">
+                            <label>Username</label>
+                            <input type="text" id="rtsp-user" placeholder="admin">
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label>Password</label>
+                            <input type="password" id="rtsp-pass" placeholder="password">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Full URL Preview</label>
+                        <input type="text" id="rtsp-preview" readonly class="url-preview">
+                    </div>
+                </div>
+
+                <!-- Webcam fields -->
+                <div id="fields-webcam" class="source-fields" style="display:none;">
+                    <div class="form-group">
+                        <label>Camera Device</label>
+                        <select id="webcam-device">
+                            <option value="0">Device 0 (Default Camera)</option>
+                            <option value="1">Device 1</option>
+                            <option value="2">Device 2</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- File fields -->
+                <div id="fields-file" class="source-fields" style="display:none;">
+                    <div class="form-group">
+                        <label>Video File Path</label>
+                        <input type="text" id="file-path" placeholder="data/samples/test_video.mp4">
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="file-loop" checked>
+                            Loop video (replay when finished)
+                        </label>
+                    </div>
+                </div>
+
                 <div class="btn-row">
-                    <button class="btn btn-secondary" onclick="testConnect()">Test Connect</button>
+                    <button class="btn btn-secondary" onclick="testConnect()">Test</button>
                     <button class="btn btn-primary" id="btnStart" onclick="startStream()">Start Stream</button>
                     <button class="btn btn-danger" id="btnStop" onclick="stopStream()" disabled>Stop</button>
                 </div>
@@ -360,38 +453,88 @@
             if (preset) {
                 currentPreset = preset;
                 document.getElementById('sourceType').value = preset.type;
-                document.getElementById('sourceUrl').value = preset.url;
-                document.getElementById('sourceInterval').value = preset.interval || 2;
-                updateIntervalVisibility();
+                onSourceTypeChange();
+                // Fill fields based on type
+                if (preset.type === 'snapshot') {
+                    document.getElementById('snapshot-url').value = preset.url;
+                    document.getElementById('snapshot-interval').value = preset.interval || 2;
+                } else if (preset.type === 'mjpeg') {
+                    document.getElementById('mjpeg-url').value = preset.url;
+                } else if (preset.type === 'webcam') {
+                    document.getElementById('webcam-device').value = preset.url || '0';
+                } else if (preset.type === 'file') {
+                    document.getElementById('file-path').value = preset.url;
+                }
             }
         }
 
         // --- Source type change ---
-        document.getElementById('sourceType').addEventListener('change', updateIntervalVisibility);
-        function updateIntervalVisibility() {
+        function onSourceTypeChange() {
             const type = document.getElementById('sourceType').value;
-            document.getElementById('intervalGroup').style.display =
-                type === 'snapshot' ? 'block' : 'none';
-            // Update placeholder
-            const urlInput = document.getElementById('sourceUrl');
-            if (type === 'webcam') urlInput.placeholder = '0 (device index)';
-            else if (type === 'file') urlInput.placeholder = 'data/samples/test_video.mp4';
-            else if (type === 'rtsp') urlInput.placeholder = 'rtsp://user:pass@ip:554/stream';
-            else urlInput.placeholder = 'https://...';
+            document.querySelectorAll('.source-fields').forEach(f => f.style.display = 'none');
+            document.getElementById('fields-' + type).style.display = 'block';
         }
+
+        // --- Build source config from current form ---
+        function getSourceConfig() {
+            const type = document.getElementById('sourceType').value;
+            let url = '';
+            let interval = 2;
+
+            switch (type) {
+                case 'snapshot':
+                    url = document.getElementById('snapshot-url').value.trim();
+                    interval = parseFloat(document.getElementById('snapshot-interval').value) || 2;
+                    break;
+                case 'mjpeg':
+                    url = document.getElementById('mjpeg-url').value.trim();
+                    break;
+                case 'rtsp':
+                    url = buildRtspUrl();
+                    break;
+                case 'webcam':
+                    url = document.getElementById('webcam-device').value;
+                    break;
+                case 'file':
+                    url = document.getElementById('file-path').value.trim();
+                    break;
+            }
+            return { type, url, interval };
+        }
+
+        // --- RTSP URL builder ---
+        function buildRtspUrl() {
+            const host = document.getElementById('rtsp-host').value.trim();
+            const port = document.getElementById('rtsp-port').value || '554';
+            const path = document.getElementById('rtsp-path').value || '/stream';
+            const user = document.getElementById('rtsp-user').value.trim();
+            const pass = document.getElementById('rtsp-pass').value;
+
+            if (!host) return '';
+            const auth = user ? `${user}:${pass}@` : '';
+            return `rtsp://${auth}${host}:${port}${path}`;
+        }
+
+        function updateRtspPreview() {
+            document.getElementById('rtsp-preview').value = buildRtspUrl() || 'rtsp://...';
+        }
+
+        // Attach RTSP preview listeners
+        ['rtsp-host','rtsp-port','rtsp-path','rtsp-user','rtsp-pass'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', updateRtspPreview);
+        });
 
         // --- Test Connect ---
         async function testConnect() {
-            const type = document.getElementById('sourceType').value;
-            const url = document.getElementById('sourceUrl').value;
-            if (!url) return showToast('Please enter a URL', 'error');
+            const { type, url } = getSourceConfig();
+            if (!url) return showToast('Vui long nhap thong tin camera', 'error');
 
             showToast('Testing connection...', 'success');
             try {
                 const resp = await fetch('/api/test-connect', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({type, url}),
+                    body: JSON.stringify({ type, url }),
                 });
                 const data = await resp.json();
                 if (data.ok) {
@@ -406,11 +549,8 @@
 
         // --- Start/Stop Stream ---
         async function startStream() {
-            const type = document.getElementById('sourceType').value;
-            const url = document.getElementById('sourceUrl').value;
-            const interval = parseFloat(document.getElementById('sourceInterval').value) || 2;
-
-            if (!url) return showToast('Please enter a URL', 'error');
+            const { type, url, interval } = getSourceConfig();
+            if (!url) return showToast('Vui long nhap thong tin camera', 'error');
 
             setBadge('connecting', 'CONNECTING...');
             try {
