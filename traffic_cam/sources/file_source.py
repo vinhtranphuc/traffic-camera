@@ -1,60 +1,47 @@
 """Video file camera source adapter."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
-import cv2
 import numpy as np
 
-from .base import CameraSource
+from .base import CVSource
+
+logger = logging.getLogger(__name__)
 
 
-class FileSource(CameraSource):
+class FileSource(CVSource):
     """Camera source for local video files with optional looping."""
 
     def __init__(self, path: str, loop: bool = True) -> None:
+        super().__init__()
         self._path = path
         self._loop = loop
-        self._cap: cv2.VideoCapture | None = None
+
+    @property
+    def _source_target(self) -> str:
+        return self._path
+
+    @property
+    def _source_label(self) -> str:
+        return "FileSource"
 
     def connect(self) -> bool:
-        """Open the video file."""
+        """Open the video file (checks existence first)."""
         if not Path(self._path).exists():
-            print(f"[FileSource] File not found: {self._path}")
+            logger.warning("[FileSource] File not found: %s", self._path)
             return False
-        self._cap = cv2.VideoCapture(self._path)
-        if not self._cap.isOpened():
-            print(f"[FileSource] Failed to open: {self._path}")
-            return False
-        print(f"[FileSource] Opened: {self._path}")
-        return True
+        return super().connect()
 
     def read_frame(self) -> tuple[bool, np.ndarray | None]:
-        """Read a frame, optionally looping back to start."""
-        if self._cap is None or not self._cap.isOpened():
-            return False, None
-        ret, frame = self._cap.read()
-        if not ret and self._loop:
-            self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret, frame = self._cap.read()
-        return ret, frame if ret else None
-
-    def release(self) -> None:
-        """Release the video file resource."""
-        if self._cap is not None:
-            self._cap.release()
-            self._cap = None
-            print("[FileSource] Released.")
-
-    def is_connected(self) -> bool:
-        """Check if the file is open."""
-        return self._cap is not None and self._cap.isOpened()
+        """Read a frame, looping back to start if enabled."""
+        ret, frame = super().read_frame()
+        if not ret and self._loop and self._cap is not None:
+            self._cap.set(0, 0)  # CAP_PROP_POS_FRAMES
+            ret, frame = super().read_frame()
+        return ret, frame
 
     @property
     def source_info(self) -> dict[str, Any]:
-        """Return source metadata."""
-        return {
-            "type": "file",
-            "path": self._path,
-            "loop": self._loop,
-        }
+        return {"type": "file", "path": self._path, "loop": self._loop}

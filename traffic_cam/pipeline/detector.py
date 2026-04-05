@@ -2,25 +2,31 @@
 
 import logging
 from dataclasses import dataclass
+from enum import IntEnum
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# COCO classes relevant to traffic scenes
-TRAFFIC_CLASS_IDS = {
-    0: "person",
-    1: "bicycle",
-    2: "car",
-    3: "motorcycle",
-    5: "bus",
-    7: "truck",
-    9: "traffic light",
-    11: "stop sign",
-}
+
+class TrafficClass(IntEnum):
+    """COCO class IDs relevant to traffic scenes."""
+
+    PERSON = 0
+    BICYCLE = 1
+    CAR = 2
+    MOTORCYCLE = 3
+    BUS = 5
+    TRUCK = 7
+    TRAFFIC_LIGHT = 9
+    STOP_SIGN = 11
 
 
-@dataclass
+TRAFFIC_CLASS_NAMES: dict[int, str] = {c.value: c.name.lower().replace("_", " ") for c in TrafficClass}
+VEHICLE_CLASS_IDS: set[int] = {TrafficClass.CAR, TrafficClass.MOTORCYCLE, TrafficClass.BUS, TrafficClass.TRUCK}
+
+
+@dataclass(frozen=True, slots=True)
 class Detection:
     """A single detection result."""
 
@@ -31,43 +37,30 @@ class Detection:
 
 
 class VehicleDetector:
-    """YOLOv8-based traffic object detector.
+    """YOLOv8-based traffic object detector."""
 
-    Detects vehicles (car, motorcycle, bus, truck), pedestrians,
-    bicycles, and traffic signs.
-    """
-
-    def __init__(
-        self, model_path: str = "yolov8n.pt", confidence: float = 0.3
-    ) -> None:
+    def __init__(self, model_path: str = "yolov8n.pt", confidence: float = 0.25) -> None:
         self._model_path = model_path
         self._confidence = confidence
         self._model = None
         self._loaded = False
 
     def load_model(self) -> bool:
-        """Load the YOLO model."""
+        """Load the YOLO model. Returns True on success."""
         try:
             from ultralytics import YOLO
-        except ImportError:
-            logger.warning("[Detector] ultralytics not installed.")
-            return False
-
-        try:
             self._model = YOLO(self._model_path)
             self._loaded = True
-            logger.info("[Detector] Model loaded: %s", self._model_path)
+            logger.info("[Detector] Loaded: %s", self._model_path)
             return True
+        except ImportError:
+            logger.warning("[Detector] ultralytics not installed.")
         except Exception as e:
-            logger.error("[Detector] Failed to load model: %s", e)
-            return False
+            logger.error("[Detector] Failed: %s", e)
+        return False
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
-        """Run detection on a single frame.
-
-        Returns:
-            List of Detection objects for traffic-related objects.
-        """
+        """Run detection on a frame. Returns list of traffic-related detections."""
         if not self._loaded or self._model is None:
             return []
 
@@ -75,25 +68,22 @@ class VehicleDetector:
         detections: list[Detection] = []
 
         for result in results:
-            boxes = result.boxes
-            if boxes is None:
+            if result.boxes is None:
                 continue
-            for box in boxes:
-                class_id = int(box.cls[0])
-                if class_id not in TRAFFIC_CLASS_IDS:
+            for box in result.boxes:
+                cls_id = int(box.cls[0])
+                if cls_id not in TRAFFIC_CLASS_NAMES:
                     continue
                 x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
-                conf = float(box.conf[0])
                 detections.append(Detection(
                     bbox=(int(x1), int(y1), int(x2), int(y2)),
-                    confidence=conf,
-                    class_name=TRAFFIC_CLASS_IDS[class_id],
-                    class_id=class_id,
+                    confidence=float(box.conf[0]),
+                    class_name=TRAFFIC_CLASS_NAMES[cls_id],
+                    class_id=cls_id,
                 ))
 
         return detections
 
     @property
     def is_loaded(self) -> bool:
-        """Check if model is loaded."""
         return self._loaded

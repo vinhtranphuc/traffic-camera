@@ -1,4 +1,7 @@
-"""Vehicle tracker using ByteTrack."""
+"""Vehicle tracker placeholder.
+
+Tracking (e.g. ByteTrack) will be implemented when needed.
+"""
 
 from dataclasses import dataclass
 
@@ -7,9 +10,9 @@ import numpy as np
 from .detector import Detection
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class TrackedObject:
-    """A tracked object with ID and history."""
+    """A tracked object with persistent ID."""
 
     track_id: int
     bbox: tuple[int, int, int, int]
@@ -18,24 +21,10 @@ class TrackedObject:
 
 
 class VehicleTracker:
-    """ByteTrack-based multi-object tracker.
-
-    Currently a placeholder that passes detections through.
-    """
-
-    def __init__(self) -> None:
-        self._tracker = None
-        self._next_id = 0
+    """Multi-object tracker placeholder."""
 
     def update(
         self, detections: list[Detection], frame: np.ndarray
     ) -> list[TrackedObject]:
-        """Update tracker with new detections.
-
-        Returns:
-            List of tracked objects. Empty if no detections.
-        """
-        if not detections:
-            return []
-        # TODO: Implement ByteTrack tracking
+        """Update tracker with new detections. Returns empty until implemented."""
         return []
