@@ -381,32 +381,24 @@ def stream_mjpeg():
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
-@app.route("/api/events")
-def api_events():
-    """SSE endpoint for real-time detection events.
+@app.route("/api/status")
+def api_status():
+    """Polling endpoint for stream status and new detection events.
 
-    Auto-closes after 5 minutes to prevent thread exhaustion.
-    Browser EventSource will auto-reconnect.
+    Query params:
+        since: event index to fetch from (default 0)
+
+    Returns JSON with status + new events since the given index.
+    Connection closes immediately — no thread held.
     """
-    def generate() -> Generator[str, None, None]:
-        last_idx = 0
-        deadline = time.time() + 300  # 5 minute max per connection
-        while time.time() < deadline:
-            current_len = len(stream.events)
-            if current_len > last_idx:
-                for evt in stream.events[last_idx:current_len]:
-                    yield f"data: {json.dumps(evt)}\n\n"
-                last_idx = current_len
-            status = {
-                "type": "status",
-                "streaming": stream.is_streaming,
-                "frame_count": stream.frame_count,
-                "total_detections": len(stream.events),
-            }
-            yield f"data: {json.dumps(status)}\n\n"
-            time.sleep(1)
-
-    return Response(generate(), mimetype="text/event-stream")
+    since = request.args.get("since", 0, type=int)
+    events = stream.events[since:] if since < len(stream.events) else []
+    return jsonify({
+        "streaming": stream.is_streaming,
+        "frame_count": stream.frame_count,
+        "total_events": len(stream.events),
+        "events": events,
+    })
 
 
 def run_server(host: str = "0.0.0.0", port: int = 5555) -> None:

@@ -440,7 +440,8 @@
 
     <script>
         let currentPreset = null;
-        let eventSource = null;
+        let pollTimer = null;
+        let lastEventIdx = 0;
         let isStreaming = false;
         let detectionLog = [];
 
@@ -449,7 +450,7 @@
             const resp = await fetch('/api/presets');
             const presets = await resp.json();
             renderPresets(presets);
-            startSSE();
+            startPolling();
         }
 
         // --- Presets ---
@@ -604,6 +605,7 @@
                     const modeLabels = {view: 'LIVE', detect: 'LIVE+DETECT', ocr: 'LIVE+OCR', full: 'LIVE+DETECT+OCR'};
                     setBadge('online', modeLabels[mode] || 'LIVE');
                     detectionLog = [];
+                    lastEventIdx = 0;
                     showToast('Stream started! Mode: ' + (modeLabels[mode] || mode), 'success');
                 } else {
                     showToast(`Failed: ${data.error}`, 'error');
@@ -627,20 +629,31 @@
             showToast('Stream stopped', 'success');
         }
 
-        // --- SSE ---
-        function startSSE() {
-            eventSource = new EventSource('/api/events');
-            eventSource.onmessage = (e) => {
-                const data = JSON.parse(e.data);
-                if (data.type === 'status') {
-                    document.getElementById('statFrames').textContent = data.frame_count;
-                    document.getElementById('statDetections').textContent = data.total_detections;
-                } else {
-                    detectionLog.push(data);
-                    if (detectionLog.length > 200) detectionLog.shift();
+        // --- Polling (replaces SSE to avoid thread exhaustion) ---
+        function startPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(pollStatus, 1000);
+        }
+
+        async function pollStatus() {
+            try {
+                const resp = await fetch(`/api/status?since=${lastEventIdx}`);
+                const data = await resp.json();
+                document.getElementById('statFrames').textContent = data.frame_count;
+                document.getElementById('statDetections').textContent = data.total_events;
+                isStreaming = data.streaming;
+
+                if (data.events && data.events.length > 0) {
+                    for (const evt of data.events) {
+                        detectionLog.push(evt);
+                        if (detectionLog.length > 200) detectionLog.shift();
+                    }
+                    lastEventIdx = data.total_events;
                     updateDetectionPanel();
                 }
-            };
+            } catch (e) {
+                // Server unreachable, ignore
+            }
         }
 
         // --- Panels ---
