@@ -1,0 +1,25 @@
+CREATE TABLE cameras (
+    id                  CHAR(36)     NOT NULL PRIMARY KEY,
+    name                VARCHAR(100) NOT NULL,
+    source_type         ENUM('RTSP', 'HTTP_MJPEG', 'WEBRTC', 'USB', 'HLS') NOT NULL,
+    connection_config   JSON         NOT NULL,
+    status              ENUM('PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'OFFLINE', 'ERROR', 'STOPPED') NOT NULL DEFAULT 'PENDING_APPROVAL',
+    owner_id            CHAR(36)     NOT NULL,
+    group_id            CHAR(36)     NULL,
+    latitude            DECIMAL(10,7) NULL,
+    longitude           DECIMAL(10,7) NULL,
+    detection_settings  JSON         NULL,
+    roi_config          JSON         NULL,
+    schedule_config     JSON         NULL,
+    thumbnail_url       VARCHAR(500) NULL,
+    reject_reason       VARCHAR(500) NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_cameras_owner (owner_id),
+    INDEX idx_cameras_group (group_id),
+    INDEX idx_cameras_status (status),
+    INDEX idx_cameras_source_type (source_type),
+    CONSTRAINT fk_cameras_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_cameras_group FOREIGN KEY (group_id) REFERENCES camera_groups(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

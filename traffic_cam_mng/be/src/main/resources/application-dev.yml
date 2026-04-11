@@ -1,0 +1,9 @@
+spring:
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.trafficcam.mng: DEBUG
+    org.springframework.security: DEBUG
+    org.flywaydb: INFO
