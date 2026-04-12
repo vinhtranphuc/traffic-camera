@@ -3,15 +3,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { Plus, Play, Square, Trash2, Edit, Settings, Search, Filter } from "lucide-react";
+import { Plus, Play, Square, Trash2, Edit, Settings, Video } from "lucide-react";
 import toast from "react-hot-toast";
 import { cameraService } from "@/services/cameraService";
 import CameraForm from "@/components/camera/CameraForm";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import Modal from "@/components/shared/Modal";
 import StatusBadge from "@/components/shared/StatusBadge";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import SearchInput from "@/components/ui/SearchInput";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 
-const STATUSES = ["", "ACTIVE", "PENDING_APPROVAL", "REJECTED", "OFFLINE", "STOPPED", "ERROR"];
+const STATUSES = ["ACTIVE", "PENDING_APPROVAL", "REJECTED", "OFFLINE", "STOPPED", "ERROR"];
 
 export default function CamerasPage() {
   const t = useTranslations();
@@ -35,14 +39,14 @@ export default function CamerasPage() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = useMemo(() => {
-    return cameras.filter((c: any) => {
-      if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (statusFilter && c.status !== statusFilter) return false;
-      if (sourceFilter && c.sourceType !== sourceFilter) return false;
-      return true;
-    });
-  }, [cameras, search, statusFilter, sourceFilter]);
+  const filtered = useMemo(() => cameras.filter((c: any) => {
+    if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (statusFilter && c.status !== statusFilter) return false;
+    if (sourceFilter && c.sourceType !== sourceFilter) return false;
+    return true;
+  }), [cameras, search, statusFilter, sourceFilter]);
+
+  const hasFilters = search || statusFilter || sourceFilter;
 
   const promptDelete = async (cam: any) => {
     setDeleteTarget(cam);
@@ -75,35 +79,19 @@ export default function CamerasPage() {
     setFormOpen(true);
   };
 
-
   return (
     <div className="p-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {filtered.length}/{cameras.length} {t("camera.title").toLowerCase()}
+          Đang hiển thị <strong className="text-foreground">{filtered.length}</strong> trên tổng <strong className="text-foreground">{cameras.length}</strong> camera
         </p>
-        <button
-          onClick={() => { setEditing(null); setFormOpen(true); }}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
+        <Button onClick={() => { setEditing(null); setFormOpen(true); }} leftIcon={<Plus className="h-4 w-4" />}>
           {t("camera.addCamera")}
-        </button>
+        </Button>
       </div>
 
-      {/* Filters */}
       <div className="mb-4 flex flex-wrap gap-2">
-        <div className="relative min-w-[200px] flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`${t("common.search")} ${t("camera.cameraName").toLowerCase()}...`}
-            className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm"
-            aria-label="Tìm kiếm camera"
-          />
-        </div>
+        <SearchInput className="min-w-[200px] flex-1 max-w-xs" onSearch={setSearch} placeholder="Tìm theo tên camera..." />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -111,9 +99,7 @@ export default function CamerasPage() {
           aria-label="Lọc theo trạng thái"
         >
           <option value="">Tất cả trạng thái</option>
-          {STATUSES.filter(Boolean).map((s) => (
-            <option key={s} value={s}>{t(`camera.status.${s}` as any)}</option>
-          ))}
+          {STATUSES.map((s) => <option key={s} value={s}>{t(`camera.status.${s}` as any)}</option>)}
         </select>
         <select
           value={sourceFilter}
@@ -128,13 +114,10 @@ export default function CamerasPage() {
           <option value="WEBRTC">WebRTC</option>
           <option value="USB">USB</option>
         </select>
-        {(search || statusFilter || sourceFilter) && (
-          <button
-            onClick={() => { setSearch(""); setStatusFilter(""); setSourceFilter(""); }}
-            className="rounded-lg border border-border bg-card px-3 py-2 text-sm hover:bg-accent"
-          >
+        {hasFilters && (
+          <Button variant="ghost" onClick={() => { setSearch(""); setStatusFilter(""); setSourceFilter(""); }}>
             Xóa bộ lọc
-          </button>
+          </Button>
         )}
       </div>
 
@@ -172,55 +155,47 @@ export default function CamerasPage() {
 
       {loading ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="animate-pulse rounded-xl border border-border bg-card p-5">
-              <div className="h-4 w-2/3 rounded bg-accent" />
-              <div className="mt-2 h-3 w-1/2 rounded bg-accent" />
-              <div className="mt-6 h-8 w-full rounded bg-accent" />
-            </div>
-          ))}
+          {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-12 text-center">
-          <Filter className="mx-auto h-12 w-12 text-muted-foreground opacity-30" aria-hidden="true" />
-          {cameras.length === 0 ? (
-            <>
-              <p className="mt-3 text-lg text-muted-foreground">{t("camera.noCameras")}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t("camera.addHint")}</p>
-              <button
-                onClick={() => { setEditing(null); setFormOpen(true); }}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-              >
-                <Plus className="h-4 w-4" />
+        cameras.length === 0 ? (
+          <EmptyState
+            icon={Video}
+            title={t("camera.noCameras")}
+            description="Bắt đầu bằng cách thêm camera đầu tiên. Camera sẽ cần được Admin phê duyệt trước khi hoạt động."
+            action={
+              <Button onClick={() => { setEditing(null); setFormOpen(true); }} leftIcon={<Plus className="h-4 w-4" />}>
                 {t("camera.addCamera")}
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="mt-3 text-muted-foreground">Không có camera nào khớp với bộ lọc</p>
-              <button
-                onClick={() => { setSearch(""); setStatusFilter(""); setSourceFilter(""); }}
-                className="mt-4 text-sm text-primary hover:underline"
-              >
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={Video}
+            title="Không tìm thấy camera nào"
+            description="Thử điều chỉnh bộ lọc hoặc xóa từ khóa tìm kiếm."
+            action={
+              <Button variant="outline" onClick={() => { setSearch(""); setStatusFilter(""); setSourceFilter(""); }}>
                 Xóa bộ lọc
-              </button>
-            </>
-          )}
-        </div>
+              </Button>
+            }
+          />
+        )
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((cam: any) => (
-            <div key={cam.id} className="rounded-xl border border-border bg-card p-5 transition hover:shadow-md">
-              <div className="flex items-start justify-between">
+            <div
+              key={cam.id}
+              className="group rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-primary/30 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate font-medium">{cam.name}</h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {cam.sourceType} &middot; {cam.ownerName || "-"}
                   </p>
                 </div>
-                <div className="ml-2">
-                  <StatusBadge status={cam.status} />
-                </div>
+                <StatusBadge status={cam.status} />
               </div>
 
               {cam.status === "REJECTED" && cam.rejectReason && (
@@ -229,46 +204,45 @@ export default function CamerasPage() {
                 </p>
               )}
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-1.5">
                 <Link
                   href={`/cameras/${cam.id}`}
-                  className="flex items-center gap-1 rounded bg-accent px-3 py-1.5 text-xs hover:opacity-80"
+                  className="inline-flex h-8 items-center gap-1 rounded bg-accent px-3 text-xs transition hover:opacity-80 active:scale-95"
                   aria-label={`Chi tiết camera ${cam.name}`}
                 >
                   <Settings className="h-3 w-3" aria-hidden="true" /> Chi tiết
                 </Link>
-                <button
-                  onClick={() => handleEdit(cam)}
-                  className="flex items-center gap-1 rounded bg-accent px-3 py-1.5 text-xs hover:opacity-80"
-                  aria-label={`Sửa camera ${cam.name}`}
-                >
-                  <Edit className="h-3 w-3" aria-hidden="true" /> {t("common.edit")}
-                </button>
+                <Button variant="ghost" size="sm" onClick={() => handleEdit(cam)} leftIcon={<Edit className="h-3 w-3" />}>
+                  {t("common.edit")}
+                </Button>
                 {cam.status === "ACTIVE" && (
-                  <button
+                  <Button
+                    variant="ghost" size="sm"
                     onClick={() => cameraService.stop(cam.id).then(() => { toast.success(`Đã dừng ${cam.name}`); load(); })}
-                    className="flex items-center gap-1 rounded bg-yellow-500/20 px-3 py-1.5 text-xs text-yellow-500"
-                    aria-label={`Dừng camera ${cam.name}`}
+                    leftIcon={<Square className="h-3 w-3" />}
+                    className="bg-yellow-500/15 text-yellow-600 hover:bg-yellow-500/25 dark:text-yellow-400"
                   >
-                    <Square className="h-3 w-3" aria-hidden="true" /> {t("camera.stop")}
-                  </button>
+                    {t("camera.stop")}
+                  </Button>
                 )}
                 {cam.status === "STOPPED" && (
-                  <button
+                  <Button
+                    variant="ghost" size="sm"
                     onClick={() => cameraService.start(cam.id).then(() => { toast.success(`Đã khởi động ${cam.name}`); load(); })}
-                    className="flex items-center gap-1 rounded bg-green-500/20 px-3 py-1.5 text-xs text-green-500"
-                    aria-label={`Khởi động camera ${cam.name}`}
+                    leftIcon={<Play className="h-3 w-3" />}
+                    className="bg-green-500/15 text-green-600 hover:bg-green-500/25 dark:text-green-400"
                   >
-                    <Play className="h-3 w-3" aria-hidden="true" /> {t("camera.start")}
-                  </button>
+                    {t("camera.start")}
+                  </Button>
                 )}
-                <button
+                <Button
+                  variant="ghost" size="sm"
                   onClick={() => promptDelete(cam)}
-                  className="flex items-center gap-1 rounded bg-red-500/20 px-3 py-1.5 text-xs text-red-500"
-                  aria-label={`Xóa camera ${cam.name}`}
+                  leftIcon={<Trash2 className="h-3 w-3" />}
+                  className="ml-auto bg-red-500/15 text-red-600 hover:bg-red-500/25 dark:text-red-400"
                 >
-                  <Trash2 className="h-3 w-3" aria-hidden="true" /> {t("common.delete")}
-                </button>
+                  {t("common.delete")}
+                </Button>
               </div>
             </div>
           ))}

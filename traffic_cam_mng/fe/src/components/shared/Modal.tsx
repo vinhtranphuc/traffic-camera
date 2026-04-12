@@ -68,12 +68,12 @@ export default function Modal({ open, onClose, title, children, size = "md", clo
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? "modal-title" : undefined}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in"
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div
         ref={modalRef}
-        className={`max-h-[90vh] w-full ${sizeClasses[size]} overflow-auto rounded-xl bg-card shadow-2xl border border-border`}
+        className={`max-h-[90vh] w-full ${sizeClasses[size]} overflow-auto rounded-xl bg-card shadow-2xl border border-border animate-scale-in`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
