@@ -19,4 +19,6 @@ interface JpaDetectionEventRepository : JpaRepository<DetectionEventEntity, Stri
     fun countByDateForCameras(cameraIds: List<String>, since: Instant): List<Array<Any>>
 
     fun countByCameraIdInAndTimestampAfter(cameraIds: List<String>, since: Instant): Long
+
+    fun countByCameraId(cameraId: String): Long
 }

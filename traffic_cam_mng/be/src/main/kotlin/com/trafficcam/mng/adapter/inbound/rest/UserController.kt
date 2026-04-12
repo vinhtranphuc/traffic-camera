@@ -1,6 +1,7 @@
 package com.trafficcam.mng.adapter.inbound.rest
 
 import com.trafficcam.mng.application.dto.user.*
+import com.trafficcam.mng.application.service.StorageService
 import com.trafficcam.mng.application.service.UserService
 import com.trafficcam.mng.common.response.ApiResponse
 import com.trafficcam.mng.common.security.UserPrincipal
@@ -9,11 +10,13 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.multipart.MultipartFile
 
 @RestController
 @RequestMapping("/api/v1/users")
 class UserController(
     private val userService: UserService,
+    private val storageService: StorageService,
 ) {
 
     // --- Self operations ---
@@ -33,6 +36,16 @@ class UserController(
         return ApiResponse.ok(result, "USER_UPDATED", "Profile updated")
     }
 
+    @PutMapping("/me/avatar", consumes = ["multipart/form-data"])
+    fun uploadAvatar(
+        @AuthenticationPrincipal principal: UserPrincipal,
+        @RequestParam("file") file: MultipartFile,
+    ): ApiResponse<Map<String, String>> {
+        val url = storageService.uploadAvatar(principal.userId, file)
+        userService.updateProfile(principal.userId, UpdateUserRequest(avatarUrl = url))
+        return ApiResponse.ok(mapOf("avatarUrl" to url), "USER_AVATAR_UPDATED", "Avatar uploaded")
+    }
+
     @PutMapping("/me/password")
     fun changePassword(
         @AuthenticationPrincipal principal: UserPrincipal,
@@ -46,6 +59,19 @@ class UserController(
     fun getSessions(@AuthenticationPrincipal principal: UserPrincipal): ApiResponse<List<SessionResponse>> {
         val result = userService.getSessions(principal.userId)
         return ApiResponse.ok(result, "USER_SESSIONS", "Sessions retrieved")
+    }
+
+    @GetMapping("/me/notification-prefs")
+    fun getNotificationPrefs(@AuthenticationPrincipal principal: UserPrincipal): ApiResponse<Map<String, Boolean>> =
+        ApiResponse.ok(userService.getNotificationPrefs(principal.userId), "USER_NOTIF_PREFS", "Preferences retrieved")
+
+    @PutMapping("/me/notification-prefs")
+    fun updateNotificationPrefs(
+        @AuthenticationPrincipal principal: UserPrincipal,
+        @RequestBody prefs: Map<String, Boolean>,
+    ): ApiResponse<Nothing> {
+        userService.updateNotificationPrefs(principal.userId, prefs)
+        return ApiResponse.ok(code = "USER_NOTIF_PREFS_UPDATED", message = "Updated")
     }
 
     @DeleteMapping("/me/sessions/{sessionId}")

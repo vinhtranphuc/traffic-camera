@@ -11,6 +11,7 @@ export const cameraService = {
   getMap: () => api.get("/v1/cameras/map"),
   getStatusSummary: () => api.get("/v1/cameras/status-summary"),
   getStreamInfo: (id: string) => api.get(`/v1/cameras/${id}/stream-info`),
+  getStats: (id: string) => api.get(`/v1/cameras/${id}/stats`),
 };
 
 export const approvalService = {

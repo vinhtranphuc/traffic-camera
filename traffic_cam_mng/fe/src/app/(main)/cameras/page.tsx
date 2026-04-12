@@ -9,6 +9,7 @@ import { cameraService } from "@/services/cameraService";
 import CameraForm from "@/components/camera/CameraForm";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import Modal from "@/components/shared/Modal";
+import StatusBadge from "@/components/shared/StatusBadge";
 
 const STATUSES = ["", "ACTIVE", "PENDING_APPROVAL", "REJECTED", "OFFLINE", "STOPPED", "ERROR"];
 
@@ -19,6 +20,7 @@ export default function CamerasPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [deleteStats, setDeleteStats] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
@@ -42,12 +44,22 @@ export default function CamerasPage() {
     });
   }, [cameras, search, statusFilter, sourceFilter]);
 
+  const promptDelete = async (cam: any) => {
+    setDeleteTarget(cam);
+    setDeleteStats(null);
+    try {
+      const res = await cameraService.getStats(cam.id);
+      setDeleteStats(res.data.data?.detectionCount ?? 0);
+    } catch { setDeleteStats(0); }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
       await cameraService.delete(deleteTarget.id);
       toast.success(`Đã xóa "${deleteTarget.name}"`);
       setDeleteTarget(null);
+      setDeleteStats(null);
       load();
     } catch { toast.error(t("common.error")); }
   };
@@ -63,14 +75,6 @@ export default function CamerasPage() {
     setFormOpen(true);
   };
 
-  const statusColor: Record<string, string> = {
-    ACTIVE: "bg-green-500/15 text-green-500",
-    PENDING_APPROVAL: "bg-yellow-500/15 text-yellow-500",
-    REJECTED: "bg-red-500/15 text-red-500",
-    OFFLINE: "bg-muted-foreground/15 text-muted-foreground",
-    STOPPED: "bg-muted-foreground/15 text-muted-foreground",
-    ERROR: "bg-red-500/15 text-red-500",
-  };
 
   return (
     <div className="p-6">
@@ -150,12 +154,20 @@ export default function CamerasPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Xóa camera"
-        message={`Bạn có chắc muốn xóa camera "${deleteTarget?.name}"? Hành động này không thể hoàn tác.`}
+        message={
+          deleteTarget
+            ? `Xóa camera "${deleteTarget.name}"?${
+                deleteStats === null ? " Đang tải thông tin..." :
+                deleteStats > 0 ? ` Sẽ xóa luôn ${deleteStats.toLocaleString()} bản ghi nhận diện.` :
+                ""
+              } Không thể hoàn tác.`
+            : ""
+        }
         confirmText={t("common.delete")}
         cancelText={t("common.cancel")}
         variant="danger"
         onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={() => { setDeleteTarget(null); setDeleteStats(null); }}
       />
 
       {loading ? (
@@ -206,9 +218,9 @@ export default function CamerasPage() {
                     {cam.sourceType} &middot; {cam.ownerName || "-"}
                   </p>
                 </div>
-                <span className={`ml-2 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor[cam.status] || "bg-muted"}`}>
-                  {t(`camera.status.${cam.status}` as any)}
-                </span>
+                <div className="ml-2">
+                  <StatusBadge status={cam.status} />
+                </div>
               </div>
 
               {cam.status === "REJECTED" && cam.rejectReason && (
@@ -251,7 +263,7 @@ export default function CamerasPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => setDeleteTarget(cam)}
+                  onClick={() => promptDelete(cam)}
                   className="flex items-center gap-1 rounded bg-red-500/20 px-3 py-1.5 text-xs text-red-500"
                   aria-label={`Xóa camera ${cam.name}`}
                 >

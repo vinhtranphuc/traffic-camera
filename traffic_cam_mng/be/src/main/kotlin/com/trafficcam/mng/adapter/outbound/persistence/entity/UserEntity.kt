@@ -50,6 +50,9 @@ class UserEntity(
     @Column(name = "oauth_id")
     var oauthId: String? = null,
 
+    @Column(name = "notification_prefs", columnDefinition = "JSON")
+    var notificationPrefs: String? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now(),
 

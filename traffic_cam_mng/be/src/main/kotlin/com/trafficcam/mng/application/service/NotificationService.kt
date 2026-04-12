@@ -3,6 +3,7 @@ package com.trafficcam.mng.application.service
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.trafficcam.mng.adapter.outbound.persistence.entity.NotificationEntity
 import com.trafficcam.mng.adapter.outbound.persistence.repository.JpaNotificationRepository
+import com.trafficcam.mng.adapter.outbound.persistence.repository.JpaUserRepository
 import com.trafficcam.mng.common.exception.ForbiddenException
 import com.trafficcam.mng.common.exception.NotFoundException
 import org.springframework.data.domain.Page
@@ -26,6 +27,7 @@ data class NotificationResponse(
 @Service
 class NotificationService(
     private val notifRepo: JpaNotificationRepository,
+    private val userRepo: JpaUserRepository,
     private val messagingTemplate: SimpMessagingTemplate,
     private val objectMapper: ObjectMapper,
 ) {
@@ -58,7 +60,12 @@ class NotificationService(
         notifRepo.delete(notif)
     }
 
-    /** Create and broadcast a notification. */
+    /**
+     * Create and broadcast a notification.
+     *
+     * Notification is always persisted to DB (user can see it in list),
+     * but push delivery (WebSocket toast / FCM) respects user preferences.
+     */
     @Transactional
     fun send(
         userId: String,
@@ -78,13 +85,27 @@ class NotificationService(
         )
         notifRepo.save(notif)
 
-        // WebSocket broadcast
-        messagingTemplate.convertAndSend("/topic/notifications/$userId", notif.toResponse())
+        // Check user preference for push delivery
+        if (shouldPush(userId, type)) {
+            messagingTemplate.convertAndSend("/topic/notifications/$userId", notif.toResponse())
+        }
+    }
+
+    private fun shouldPush(userId: String, type: String): Boolean {
+        val user = userRepo.findById(userId).orElse(null) ?: return true
+        val prefsJson = user.notificationPrefs ?: return true
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            val prefs = objectMapper.readValue(prefsJson, Map::class.java) as Map<String, Boolean>
+            prefs.getOrDefault(type, true) // default: push enabled
+        } catch (_: Exception) {
+            true
+        }
     }
 
     private fun NotificationEntity.toResponse() = NotificationResponse(
         id = id, type = type, title = title, message = message,
-        data = data?.let { objectMapper.readValue(it, Map::class.java) as Map<String, Any> },
+        data = data?.let { @Suppress("UNCHECKED_CAST") (objectMapper.readValue(it, Map::class.java) as Map<String, Any>) },
         isRead = isRead, createdAt = createdAt.toString(),
     )
 }

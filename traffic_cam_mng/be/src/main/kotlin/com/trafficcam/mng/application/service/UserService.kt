@@ -69,6 +69,26 @@ class UserService(
         }
     }
 
+    @Transactional
+    fun updateNotificationPrefs(userId: String, prefs: Map<String, Boolean>) {
+        val user = findUserOrThrow(userId)
+        val json = com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(prefs)
+        user.notificationPrefs = json
+        user.updatedAt = Instant.now()
+        userRepo.save(user)
+    }
+
+    fun getNotificationPrefs(userId: String): Map<String, Boolean> {
+        val user = findUserOrThrow(userId)
+        val prefs = user.notificationPrefs ?: return emptyMap()
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            com.fasterxml.jackson.databind.ObjectMapper().readValue(prefs, Map::class.java) as Map<String, Boolean>
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
     fun getSessions(userId: String): List<SessionResponse> {
         return sessionRepo.findByUserId(userId).map { s ->
             SessionResponse(

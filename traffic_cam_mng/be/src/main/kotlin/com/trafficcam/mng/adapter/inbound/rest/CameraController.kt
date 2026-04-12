@@ -1,5 +1,6 @@
 package com.trafficcam.mng.adapter.inbound.rest
 
+import com.trafficcam.mng.adapter.outbound.persistence.repository.JpaDetectionEventRepository
 import com.trafficcam.mng.application.dto.camera.*
 import com.trafficcam.mng.application.service.CameraService
 import com.trafficcam.mng.common.response.ApiResponse
@@ -12,7 +13,17 @@ import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/api/v1/cameras")
-class CameraController(private val cameraService: CameraService) {
+class CameraController(
+    private val cameraService: CameraService,
+    private val detectionRepo: JpaDetectionEventRepository,
+) {
+
+    @GetMapping("/{id}/stats")
+    fun getStats(@AuthenticationPrincipal p: UserPrincipal, @PathVariable id: String): ApiResponse<Map<String, Any>> {
+        cameraService.getCamera(id, p) // access check
+        val count = detectionRepo.countByCameraId(id)
+        return ApiResponse.ok(mapOf("detectionCount" to count), "CAMERA_STATS", "Stats retrieved")
+    }
 
     @GetMapping
     fun list(

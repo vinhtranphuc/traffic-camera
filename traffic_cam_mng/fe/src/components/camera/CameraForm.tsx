@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
 import { cameraFormSchema, CameraFormData } from "@/schemas/camera";
 import { cameraService, systemConfigService } from "@/services/cameraService";
+import LocationPicker from "@/components/camera/LocationPicker";
 
 interface Props {
   initial?: any;
@@ -171,15 +172,26 @@ export default function CameraForm({ initial, onSuccess, onCancel }: Props) {
         )}
       </div>
 
-      {/* Location */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelCls}>{t("camera.latitude")}</label>
-          <input {...form.register("latitude")} className={inputCls} placeholder="16.0545" />
-        </div>
-        <div>
-          <label className={labelCls}>{t("camera.longitude")}</label>
-          <input {...form.register("longitude")} className={inputCls} placeholder="108.2022" />
+      {/* Location with interactive map picker */}
+      <div className="rounded-lg border border-border bg-accent/30 p-4">
+        <p className="mb-3 text-sm font-medium">{t("camera.location")}</p>
+        <LocationPicker
+          lat={form.watch("latitude")}
+          lng={form.watch("longitude")}
+          onChange={(lat, lng) => {
+            form.setValue("latitude", lat);
+            form.setValue("longitude", lng);
+          }}
+        />
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("camera.latitude")}</label>
+            <input {...form.register("latitude")} className={inputCls} placeholder="16.0545" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("camera.longitude")}</label>
+            <input {...form.register("longitude")} className={inputCls} placeholder="108.2022" />
+          </div>
         </div>
       </div>
 
