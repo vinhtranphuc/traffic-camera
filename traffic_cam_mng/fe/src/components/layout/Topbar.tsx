@@ -2,10 +2,15 @@
 
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Menu } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "@/components/notification/NotificationBell";
 
-export default function Topbar() {
+interface Props {
+  onMenuClick?: () => void;
+}
+
+export default function Topbar({ onMenuClick }: Props) {
   const t = useTranslations();
   const pathname = usePathname();
 
@@ -23,8 +28,17 @@ export default function Topbar() {
   })();
 
   return (
-    <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-3 backdrop-blur">
-      <h2 className="text-lg font-semibold">{pageTitle}</h2>
+    <header className="flex items-center justify-between border-b border-border bg-card/80 px-4 py-3 backdrop-blur sm:px-6">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onMenuClick}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground lg:hidden"
+          aria-label="Mở menu"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+        <h2 className="text-lg font-semibold">{pageTitle}</h2>
+      </div>
       <div className="flex items-center gap-2">
         <ThemeToggle />
         <NotificationBell />

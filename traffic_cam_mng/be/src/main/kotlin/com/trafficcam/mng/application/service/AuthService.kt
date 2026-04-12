@@ -8,6 +8,7 @@ import com.trafficcam.mng.adapter.outbound.persistence.repository.JpaUserSession
 import com.trafficcam.mng.application.dto.auth.*
 import com.trafficcam.mng.common.exception.*
 import com.trafficcam.mng.common.security.JwtTokenProvider
+import com.trafficcam.mng.common.security.LoginRateLimiter
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -20,20 +21,28 @@ class AuthService(
     private val sessionRepo: JpaUserSessionRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenProvider: JwtTokenProvider,
+    private val rateLimiter: LoginRateLimiter,
 ) {
 
     @Transactional
     fun login(request: LoginRequest, deviceInfo: String?, ipAddress: String?): LoginResponse {
+        if (!rateLimiter.allow(request.username, ipAddress)) {
+            throw ForbiddenException("AUTH_RATE_LIMIT", "Quá nhiều lần thử. Vui lòng đợi 5 phút")
+        }
+
         val user = userRepo.findByUsername(request.username)
-            .orElseThrow { UnauthorizedException("AUTH_INVALID", "Invalid username or password") }
+            .orElseThrow { UnauthorizedException("AUTH_INVALID", "Sai tên đăng nhập hoặc mật khẩu") }
 
         if (!passwordEncoder.matches(request.password, user.passwordHash)) {
-            throw UnauthorizedException("AUTH_INVALID", "Invalid username or password")
+            throw UnauthorizedException("AUTH_INVALID", "Sai tên đăng nhập hoặc mật khẩu")
         }
 
         if (user.isLocked) {
-            throw ForbiddenException("AUTH_LOCKED", "Account is locked: ${user.lockedReason ?: "Contact administrator"}")
+            throw ForbiddenException("AUTH_LOCKED", "Tài khoản đã bị khóa: ${user.lockedReason ?: "Liên hệ quản trị viên"}")
         }
+
+        // Successful login resets rate counter
+        rateLimiter.reset(request.username, ipAddress)
 
         val accessToken = jwtTokenProvider.generateAccessToken(user.id, user.username, user.role.name)
         val refreshToken = jwtTokenProvider.generateRefreshToken()
@@ -65,6 +74,7 @@ class AuthService(
         if (request.email != null && userRepo.existsByEmail(request.email)) {
             throw ConflictException("AUTH_EMAIL_EXISTS", "Email '${request.email}' already registered")
         }
+        validatePasswordStrength(request.password)
 
         val user = UserEntity(
             id = UUID.randomUUID().toString(),
@@ -149,6 +159,12 @@ class AuthService(
         val sessions = sessionRepo.findByUserIdAndIsActiveTrue(userId)
         sessions.forEach { it.isActive = false }
         sessionRepo.saveAll(sessions)
+    }
+
+    private fun validatePasswordStrength(password: String) {
+        if (password.length < 8) throw ValidationException("PASSWORD_TOO_SHORT", "Mật khẩu tối thiểu 8 ký tự")
+        if (!password.any { it.isDigit() }) throw ValidationException("PASSWORD_NO_DIGIT", "Mật khẩu phải có ít nhất 1 chữ số")
+        if (!password.any { it.isLetter() }) throw ValidationException("PASSWORD_NO_LETTER", "Mật khẩu phải có ít nhất 1 chữ cái")
     }
 
     private fun UserEntity.toUserInfo() = UserInfo(

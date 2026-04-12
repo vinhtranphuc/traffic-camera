@@ -14,10 +14,15 @@ import {
   Users,
   Cog,
   LogOut,
+  X,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 
-export default function Sidebar() {
+interface Props {
+  onClose?: () => void;
+}
+
+export default function Sidebar({ onClose }: Props = {}) {
   const t = useTranslations();
   const pathname = usePathname();
   const router = useRouter();
@@ -49,15 +54,26 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="flex w-64 flex-col border-r border-border bg-card">
-      <div className="flex items-center gap-3 p-4 pb-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-          TC
+    <aside className="flex h-full w-64 flex-col border-r border-border bg-card">
+      <div className="flex items-center justify-between p-4 pb-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+            TC
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold">{t("common.appName")}</h1>
+            <p className="text-xs text-muted-foreground">Management System</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-sm font-semibold">{t("common.appName")}</h1>
-          <p className="text-xs text-muted-foreground">Management System</p>
-        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground lg:hidden"
+            aria-label="Đóng menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 space-y-0.5 px-3 overflow-auto">

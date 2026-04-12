@@ -1,5 +1,6 @@
 package com.trafficcam.mng.common.security
 
+import com.trafficcam.mng.adapter.outbound.persistence.repository.JpaUserRepository
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -12,6 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 @Component
 class JwtAuthenticationFilter(
     private val jwtTokenProvider: JwtTokenProvider,
+    private val userRepo: JpaUserRepository,
 ) : OncePerRequestFilter() {
 
     override fun doFilterInternal(
@@ -23,15 +25,20 @@ class JwtAuthenticationFilter(
 
         if (token != null && jwtTokenProvider.validateToken(token)) {
             val userId = jwtTokenProvider.getUserIdFromToken(token)
-            val username = jwtTokenProvider.getUsernameFromToken(token)
-            val role = jwtTokenProvider.getRoleFromToken(token)
 
-            val principal = UserPrincipal(userId, username, role)
-            val authentication = UsernamePasswordAuthenticationToken(
-                principal, null, principal.authorities
-            )
-            authentication.details = WebAuthenticationDetailsSource().buildDetails(request)
-            SecurityContextHolder.getContext().authentication = authentication
+            // Reject if user is locked (session should be invalidated but check here too)
+            val user = userRepo.findById(userId).orElse(null)
+            if (user != null && !user.isLocked) {
+                val username = jwtTokenProvider.getUsernameFromToken(token)
+                val role = jwtTokenProvider.getRoleFromToken(token)
+
+                val principal = UserPrincipal(userId, username, role)
+                val authentication = UsernamePasswordAuthenticationToken(
+                    principal, null, principal.authorities
+                )
+                authentication.details = WebAuthenticationDetailsSource().buildDetails(request)
+                SecurityContextHolder.getContext().authentication = authentication
+            }
         }
 
         filterChain.doFilter(request, response)

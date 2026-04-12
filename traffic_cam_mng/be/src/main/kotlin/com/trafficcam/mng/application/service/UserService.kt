@@ -49,9 +49,24 @@ class UserService(
         if (!passwordEncoder.matches(request.currentPassword, user.passwordHash)) {
             throw ValidationException("USER_WRONG_PASSWORD", "Current password is incorrect")
         }
+        validatePasswordStrength(request.newPassword)
         user.passwordHash = passwordEncoder.encode(request.newPassword)
         user.updatedAt = Instant.now()
         userRepo.save(user)
+        // Invalidate all other sessions for security
+        sessionRepo.findByUserIdAndIsActiveTrue(userId).forEach { it.isActive = false }
+    }
+
+    private fun validatePasswordStrength(password: String) {
+        if (password.length < 8) {
+            throw ValidationException("PASSWORD_TOO_SHORT", "Mật khẩu tối thiểu 8 ký tự")
+        }
+        if (!password.any { it.isDigit() }) {
+            throw ValidationException("PASSWORD_NO_DIGIT", "Mật khẩu phải có ít nhất 1 chữ số")
+        }
+        if (!password.any { it.isLetter() }) {
+            throw ValidationException("PASSWORD_NO_LETTER", "Mật khẩu phải có ít nhất 1 chữ cái")
+        }
     }
 
     fun getSessions(userId: String): List<SessionResponse> {
@@ -125,6 +140,8 @@ class UserService(
         user.lockedAt = Instant.now()
         user.lockedBy = principal.userId
         user.updatedAt = Instant.now()
+        // Invalidate all active sessions of locked user
+        sessionRepo.findByUserIdAndIsActiveTrue(id).forEach { it.isActive = false }
         return userRepo.save(user).toResponse()
     }
 

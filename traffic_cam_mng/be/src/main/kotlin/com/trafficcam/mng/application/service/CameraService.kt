@@ -63,7 +63,12 @@ class CameraService(
             }
             else -> cameraRepo.findAll(pageable)
         }
-        return page.map { it.toResponse() }
+        // Batch-load related data to avoid N+1
+        val ownerIds = page.content.map { it.ownerId }.toSet()
+        val groupIds = page.content.mapNotNull { it.groupId }.toSet()
+        val ownerMap = if (ownerIds.isNotEmpty()) userRepo.findAllById(ownerIds).associateBy { it.id } else emptyMap()
+        val groupMap = if (groupIds.isNotEmpty()) groupRepo.findAllById(groupIds).associateBy { it.id } else emptyMap()
+        return page.map { it.toResponse(ownerMap[it.ownerId], it.groupId?.let { gid -> groupMap[gid] }) }
     }
 
     fun getCamera(id: String, principal: UserPrincipal): CameraResponse {
@@ -367,9 +372,12 @@ class CameraService(
         try { SourceTypeEnum.valueOf(value) }
         catch (e: IllegalArgumentException) { throw ValidationException("CAMERA_INVALID_SOURCE", "Invalid source type: $value") }
 
-    private fun CameraEntity.toResponse(): CameraResponse {
-        val owner = userRepo.findById(ownerId).orElse(null)
-        val group = groupId?.let { groupRepo.findById(it).orElse(null) }
+    private fun CameraEntity.toResponse(
+        preloadedOwner: UserEntity? = null,
+        preloadedGroup: CameraGroupEntity? = null,
+    ): CameraResponse {
+        val owner = preloadedOwner ?: userRepo.findById(ownerId).orElse(null)
+        val group = preloadedGroup ?: groupId?.let { groupRepo.findById(it).orElse(null) }
         return CameraResponse(
             id = id, name = name, sourceType = sourceType.name,
             connectionConfig = objectMapper.readValue(connectionConfig),
