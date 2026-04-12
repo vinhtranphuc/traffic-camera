@@ -22,6 +22,7 @@ class CameraService(
     private val userRepo: JpaUserRepository,
     private val assignmentRepo: JpaAdminAssignmentRepository,
     private val objectMapper: ObjectMapper,
+    private val notificationService: NotificationService,
 ) {
 
     fun listCameras(principal: UserPrincipal, pageable: Pageable): Page<CameraResponse> {
@@ -72,9 +73,42 @@ class CameraService(
                 snapshotConfig = camera.connectionConfig,
             )
             approvalRepo.save(approval)
+            notifyAdminsOfApprovalRequest(camera, principal.userId)
         }
 
         return camera.toResponse()
+    }
+
+    private fun notifyAdminsOfApprovalRequest(camera: CameraEntity, requesterId: String) {
+        // Find admins assigned to this customer
+        val adminIds = assignmentRepo.findAll()
+            .filter { it.customerId == requesterId }
+            .map { it.adminId }
+            .toMutableList()
+        // Also notify all super admins
+        userRepo.findByRole(RoleEnum.SUPER_ADMIN, org.springframework.data.domain.Pageable.unpaged())
+            .content.forEach { adminIds.add(it.id) }
+        // If no admin assigned, notify all admins
+        if (adminIds.none { userRepo.findById(it).map { u -> u.role == RoleEnum.ADMIN }.orElse(false) }) {
+            userRepo.findByRole(RoleEnum.ADMIN, org.springframework.data.domain.Pageable.unpaged())
+                .content.forEach { adminIds.add(it.id) }
+        }
+
+        val requester = userRepo.findById(requesterId).orElse(null)
+        adminIds.distinct().forEach { adminId ->
+            notificationService.send(
+                userId = adminId,
+                type = "CAMERA_APPROVAL_REQUESTED",
+                title = "Yêu cầu phê duyệt camera mới",
+                message = "${requester?.fullName ?: "Người dùng"} đã yêu cầu phê duyệt camera '${camera.name}'",
+                data = mapOf(
+                    "cameraId" to camera.id,
+                    "cameraName" to camera.name,
+                    "requestedBy" to (requester?.fullName ?: ""),
+                    "redirectUrl" to "/admin/approvals",
+                ),
+            )
+        }
     }
 
     @Transactional
@@ -197,6 +231,15 @@ class CameraService(
         camera.updatedAt = Instant.now()
         cameraRepo.save(camera)
 
+        // Notify camera owner
+        notificationService.send(
+            userId = camera.ownerId,
+            type = "CAMERA_APPROVED",
+            title = "Camera đã được phê duyệt",
+            message = "Camera '${camera.name}' đã được phê duyệt và có thể hoạt động",
+            data = mapOf("cameraId" to camera.id, "cameraName" to camera.name, "redirectUrl" to "/cameras"),
+        )
+
         return approval.toResponse()
     }
 
@@ -220,6 +263,15 @@ class CameraService(
         camera.rejectReason = reason
         camera.updatedAt = Instant.now()
         cameraRepo.save(camera)
+
+        // Notify camera owner
+        notificationService.send(
+            userId = camera.ownerId,
+            type = "CAMERA_REJECTED",
+            title = "Camera đã bị từ chối",
+            message = "Camera '${camera.name}' bị từ chối${if (!reason.isNullOrBlank()) ". Lý do: $reason" else ""}",
+            data = mapOf("cameraId" to camera.id, "cameraName" to camera.name, "reason" to (reason ?: ""), "redirectUrl" to "/cameras"),
+        )
 
         return approval.toResponse()
     }

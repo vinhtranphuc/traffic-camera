@@ -1,3 +1,45 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 255 255 255;
+    --foreground: 15 23 42;
+    --card: 255 255 255;
+    --card-foreground: 15 23 42;
+    --border: 226 232 240;
+    --input: 226 232 240;
+    --muted: 241 245 249;
+    --muted-foreground: 100 116 139;
+    --accent: 241 245 249;
+    --primary: 37 99 235;
+    --primary-foreground: 248 250 252;
+  }
+
+  .dark {
+    --background: 9 9 11;
+    --foreground: 229 231 235;
+    --card: 24 24 27;
+    --card-foreground: 229 231 235;
+    --border: 39 39 42;
+    --input: 39 39 42;
+    --muted: 39 39 42;
+    --muted-foreground: 161 161 170;
+    --accent: 39 39 42;
+    --primary: 59 130 246;
+    --primary-foreground: 255 255 255;
+  }
+}
+
+@layer base {
+  body {
+    background-color: rgb(var(--background));
+    color: rgb(var(--foreground));
+  }
+}
+
+/* Leaflet dark mode */
+.dark .leaflet-tile {
+  filter: brightness(0.7) invert(1) contrast(0.9) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}

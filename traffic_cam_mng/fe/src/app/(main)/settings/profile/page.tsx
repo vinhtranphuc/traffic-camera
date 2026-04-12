@@ -1,15 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import toast from "react-hot-toast";
 import { userService } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function ProfilePage() {
+  const t = useTranslations();
+  const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const [form, setForm] = useState({ fullName: "", email: "", phone: "" });
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
 
   useEffect(() => {
     userService.getProfile().then((res) => {
@@ -23,31 +28,56 @@ export default function ProfilePage() {
     try {
       const res = await userService.updateProfile(form);
       setUser({ ...user!, fullName: res.data.data.fullName });
-      setMsg("Profile updated!");
-    } catch { setMsg("Failed to update"); }
+      toast.success(t("settings.profileUpdated"));
+    } catch { toast.error(t("common.error")); }
     setSaving(false);
-    setTimeout(() => setMsg(""), 3000);
   };
+
+  const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
+  const labelCls = "mb-1 block text-sm text-muted-foreground";
+
+  const subNavs = [
+    { href: "/settings/profile", label: t("settings.profile") },
+    { href: "/settings/password", label: t("settings.changePassword") },
+    { href: "/settings/sessions", label: t("settings.sessions") },
+    { href: "/settings/notifications", label: t("settings.notificationPrefs") },
+  ];
 
   return (
     <div className="p-6">
-      <h2 className="mb-6 text-xl font-semibold text-white">Profile Settings</h2>
-      <div className="max-w-lg space-y-4 rounded-xl border border-gray-800 bg-gray-900 p-6">
-        {msg && <div className="rounded bg-green-600/20 p-2 text-sm text-green-400">{msg}</div>}
+      <div className="mb-6 flex gap-2 border-b border-border pb-3">
+        {subNavs.map((n) => {
+          const active = pathname === n.href;
+          return (
+            <Link
+              key={n.href}
+              href={n.href}
+              className={`rounded-lg px-4 py-2 text-sm transition ${
+                active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {n.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="max-w-lg space-y-4 rounded-xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">{t("settings.profile")}</h3>
         <div>
-          <label className="mb-1 block text-sm text-gray-400">Full Name</label>
-          <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white" />
+          <label className={labelCls}>{t("auth.fullName")}</label>
+          <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} className={inputCls} />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-gray-400">Email</label>
-          <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white" />
+          <label className={labelCls}>{t("auth.email")}</label>
+          <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={inputCls} />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-gray-400">Phone</label>
-          <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white" />
+          <label className={labelCls}>{t("auth.phone")}</label>
+          <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={inputCls} />
         </div>
-        <button onClick={handleSave} disabled={saving} className="rounded-lg bg-blue-600 px-6 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
-          {saving ? "Saving..." : "Save Changes"}
+        <button onClick={handleSave} disabled={saving} className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
+          {saving ? t("common.loading") : t("common.save")}
         </button>
       </div>
     </div>

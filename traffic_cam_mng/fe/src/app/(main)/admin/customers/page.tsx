@@ -1,13 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+import { Plus, Lock, Unlock } from "lucide-react";
+import toast from "react-hot-toast";
 import { userService } from "@/services/authService";
+import { useAuthStore } from "@/stores/authStore";
 
 export default function CustomersPage() {
+  const t = useTranslations();
+  const currentRole = useAuthStore((s) => s.user?.role);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ username: "", password: "", fullName: "", role: "CUSTOMER" });
+
+  const availableRoles =
+    currentRole === "SYSTEM_ADMIN" ? ["SUPER_ADMIN"] :
+    currentRole === "SUPER_ADMIN" ? ["ADMIN"] :
+    currentRole === "ADMIN" ? ["CUSTOMER"] : [];
 
   const load = () => {
     setLoading(true);
@@ -17,65 +28,93 @@ export default function CustomersPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    if (availableRoles.length > 0) setForm((f) => ({ ...f, role: availableRoles[0] }));
+  }, []);
 
   const handleCreate = async () => {
     try {
       await userService.createUser(form);
+      toast.success(t("common.success"));
       setShowCreate(false);
-      setForm({ username: "", password: "", fullName: "", role: "CUSTOMER" });
+      setForm({ username: "", password: "", fullName: "", role: availableRoles[0] || "CUSTOMER" });
       load();
-    } catch {}
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || t("common.error"));
+    }
   };
+
+  const inputCls = "rounded-lg border border-border bg-background px-3 py-2 text-sm";
 
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">User Management</h2>
-        <button onClick={() => setShowCreate(!showCreate)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">+ Create User</button>
+        <p className="text-sm text-muted-foreground">{users.length} {t("user.title").toLowerCase()}</p>
+        <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+          <Plus className="h-4 w-4" />
+          {t("user.createUser")}
+        </button>
       </div>
 
       {showCreate && (
-        <div className="mb-6 rounded-xl border border-gray-800 bg-gray-900 p-5">
-          <div className="grid grid-cols-2 gap-4">
-            <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="Username" className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white" />
-            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Password" className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white" />
-            <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Full Name" className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white" />
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white">
-              <option value="CUSTOMER">Customer</option>
-              <option value="ADMIN">Admin</option>
-              <option value="SUPER_ADMIN">Super Admin</option>
+        <div className="mb-6 rounded-xl border border-border bg-card p-5">
+          <div className="grid grid-cols-2 gap-3">
+            <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder={t("auth.username")} className={inputCls} />
+            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={t("auth.password")} className={inputCls} />
+            <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder={t("auth.fullName")} className={inputCls} />
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className={inputCls}>
+              {availableRoles.map((r) => (
+                <option key={r} value={r}>{t(`user.roles.${r}` as any)}</option>
+              ))}
             </select>
           </div>
           <div className="mt-4 flex gap-2">
-            <button onClick={handleCreate} className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700">Create</button>
-            <button onClick={() => setShowCreate(false)} className="rounded-lg bg-gray-700 px-4 py-2 text-sm text-gray-300">Cancel</button>
+            <button onClick={handleCreate} className="rounded-lg bg-green-500 px-4 py-2 text-sm text-white hover:opacity-90">{t("common.create")}</button>
+            <button onClick={() => setShowCreate(false)} className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-accent">{t("common.cancel")}</button>
           </div>
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-800 bg-gray-900">
+      <div className="rounded-xl border border-border bg-card">
         <table className="w-full text-left text-sm">
-          <thead><tr className="border-b border-gray-800 text-gray-400">
-            <th className="px-4 py-3">Username</th><th className="px-4 py-3">Full Name</th>
-            <th className="px-4 py-3">Role</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th>
-          </tr></thead>
+          <thead className="bg-accent/50">
+            <tr className="border-b border-border text-muted-foreground">
+              <th className="px-4 py-3">{t("auth.username")}</th>
+              <th className="px-4 py-3">{t("auth.fullName")}</th>
+              <th className="px-4 py-3">{t("user.role")}</th>
+              <th className="px-4 py-3">{t("common.status")}</th>
+              <th className="px-4 py-3">{t("common.actions")}</th>
+            </tr>
+          </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">{t("common.loading")}</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">No users</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">{t("common.noData")}</td></tr>
             ) : users.map((u: any) => (
-              <tr key={u.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="px-4 py-3 text-white">{u.username}</td>
-                <td className="px-4 py-3 text-gray-300">{u.fullName}</td>
-                <td className="px-4 py-3"><span className="rounded bg-blue-600/20 px-2 py-0.5 text-xs text-blue-400">{u.role}</span></td>
-                <td className="px-4 py-3">{u.isLocked ? <span className="text-red-400">Locked</span> : <span className="text-green-400">Active</span>}</td>
+              <tr key={u.id} className="border-b border-border/50 hover:bg-accent/30">
+                <td className="px-4 py-3 font-medium">{u.username}</td>
+                <td className="px-4 py-3">{u.fullName}</td>
+                <td className="px-4 py-3">
+                  <span className="rounded bg-primary/20 px-2 py-0.5 text-xs text-primary">
+                    {t(`user.roles.${u.role}` as any)}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  {u.isLocked
+                    ? <span className="text-red-500">{t("user.locked")}</span>
+                    : <span className="text-green-500">{t("user.active")}</span>}
+                </td>
                 <td className="px-4 py-3">
                   {u.isLocked ? (
-                    <button onClick={() => userService.unlockUser(u.id).then(load)} className="rounded bg-green-600/20 px-2 py-1 text-xs text-green-400">Unlock</button>
+                    <button onClick={() => userService.unlockUser(u.id).then(load)} className="flex items-center gap-1 rounded bg-green-500/20 px-2 py-1 text-xs text-green-500">
+                      <Unlock className="h-3 w-3" /> {t("user.unlock")}
+                    </button>
                   ) : (
-                    <button onClick={() => userService.lockUser(u.id, "Admin action").then(load)} className="rounded bg-red-600/20 px-2 py-1 text-xs text-red-400">Lock</button>
+                    <button onClick={() => userService.lockUser(u.id, "Admin action").then(load)} className="flex items-center gap-1 rounded bg-red-500/20 px-2 py-1 text-xs text-red-500">
+                      <Lock className="h-3 w-3" /> {t("user.lock")}
+                    </button>
                   )}
                 </td>
               </tr>

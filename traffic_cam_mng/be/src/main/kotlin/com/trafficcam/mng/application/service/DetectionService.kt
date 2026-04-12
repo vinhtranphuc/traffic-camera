@@ -46,15 +46,59 @@ class DetectionService(
         cameraId: String?,
         objectType: String?,
         plateText: String?,
+        from: Instant? = null,
+        to: Instant? = null,
         pageable: Pageable,
     ): Page<DetectionResponse> {
-        if (plateText != null) {
-            return detectionRepo.findByPlateTextContainingIgnoreCase(plateText, pageable).map { it.toResponse() }
-        }
         val cameraIds = getScopedCameraIds(principal)
         if (cameraIds.isEmpty()) return Page.empty()
-        val filtered = if (cameraId != null) listOf(cameraId).filter { it in cameraIds } else cameraIds
-        return detectionRepo.findByCameraIdIn(filtered, pageable).map { it.toResponse() }
+        val scoped = if (cameraId != null) listOf(cameraId).filter { it in cameraIds } else cameraIds
+        if (scoped.isEmpty()) return Page.empty()
+
+        val all = detectionRepo.findByCameraIdIn(scoped, Pageable.unpaged()).content
+        val filtered = all.filter { e ->
+            (objectType.isNullOrBlank() || e.objectType == objectType) &&
+            (plateText.isNullOrBlank() || (e.plateText?.contains(plateText, ignoreCase = true) == true)) &&
+            (from == null || e.timestamp.isAfter(from)) &&
+            (to == null || e.timestamp.isBefore(to))
+        }.sortedByDescending { it.timestamp }
+
+        val start = (pageable.pageNumber * pageable.pageSize).coerceAtMost(filtered.size)
+        val end = (start + pageable.pageSize).coerceAtMost(filtered.size)
+        val pageContent = filtered.subList(start, end).map { it.toResponse() }
+        return org.springframework.data.domain.PageImpl(pageContent, pageable, filtered.size.toLong())
+    }
+
+    fun exportCsv(
+        principal: UserPrincipal,
+        cameraId: String?,
+        objectType: String?,
+        plateText: String?,
+        from: Instant? = null,
+        to: Instant? = null,
+    ): String {
+        val cameraIds = getScopedCameraIds(principal)
+        if (cameraIds.isEmpty()) return "timestamp,camera,object_type,confidence,plate_text,snapshot_url\n"
+        val scoped = if (cameraId != null) listOf(cameraId).filter { it in cameraIds } else cameraIds
+
+        val all = detectionRepo.findByCameraIdIn(scoped, Pageable.unpaged()).content
+        val filtered = all.filter { e ->
+            (objectType.isNullOrBlank() || e.objectType == objectType) &&
+            (plateText.isNullOrBlank() || (e.plateText?.contains(plateText, ignoreCase = true) == true)) &&
+            (from == null || e.timestamp.isAfter(from)) &&
+            (to == null || e.timestamp.isBefore(to))
+        }.sortedByDescending { it.timestamp }
+
+        val sb = StringBuilder()
+        sb.append("timestamp,camera,object_type,confidence,plate_text,snapshot_url\n")
+        for (e in filtered) {
+            val camera = cameraRepo.findById(e.cameraId).orElse(null)
+            val camName = camera?.name?.replace(",", ";") ?: e.cameraId
+            val plate = e.plateText?.replace(",", ";") ?: ""
+            val url = e.snapshotUrl?.replace(",", ";") ?: ""
+            sb.append("${e.timestamp},${camName},${e.objectType},${e.confidence},${plate},${url}\n")
+        }
+        return sb.toString()
     }
 
     fun getById(id: String): DetectionResponse {

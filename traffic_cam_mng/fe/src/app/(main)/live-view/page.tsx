@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+import { Radio } from "lucide-react";
 import { cameraService } from "@/services/cameraService";
+import HlsPlayer from "@/components/camera/HlsPlayer";
 
 export default function LiveViewPage() {
+  const t = useTranslations();
   const [cameras, setCameras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -16,33 +20,43 @@ export default function LiveViewPage() {
 
   return (
     <div className="p-6">
-      <h2 className="mb-6 text-xl font-semibold text-white">Live View</h2>
-
       {loading ? (
-        <p className="text-gray-500">Loading cameras...</p>
+        <p className="text-muted-foreground">{t("common.loading")}</p>
       ) : cameras.length === 0 ? (
-        <div className="rounded-xl border border-gray-800 bg-gray-900 p-12 text-center">
-          <p className="text-gray-500">No active cameras</p>
-          <p className="mt-1 text-sm text-gray-600">Add and activate cameras to view live streams</p>
+        <div className="rounded-xl border border-border bg-card p-12 text-center">
+          <p className="text-muted-foreground">{t("liveView.noActive")}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
-          {cameras.map((cam: any) => (
-            <div key={cam.id} className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-              <div className="flex h-64 items-center justify-center bg-black text-gray-600">
-                <div className="text-center">
-                  <p className="text-2xl">&#127909;</p>
-                  <p className="mt-2 text-sm">{cam.name}</p>
-                  <p className="text-xs text-gray-700">{cam.sourceType} stream</p>
-                  <p className="mt-2 text-xs text-blue-400">HLS.js player pending</p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {cameras.map((cam: any) => {
+            const hlsUrl = cam.sourceType === "HLS" ? cam.connectionConfig?.url : null;
+            return (
+              <div key={cam.id} className="overflow-hidden rounded-xl border border-border bg-card">
+                <div className="relative h-64 bg-black">
+                  {hlsUrl ? (
+                    <HlsPlayer src={hlsUrl} />
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+                      <Radio className="h-12 w-12 opacity-30" />
+                      <p className="mt-2 text-sm">{cam.name}</p>
+                      <p className="text-xs">{cam.sourceType} stream</p>
+                      <p className="mt-2 text-xs">
+                        {cam.sourceType === "RTSP" ? "RTSP cần transcode qua media server" : "Không hỗ trợ trình duyệt"}
+                      </p>
+                    </div>
+                  )}
+                  <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                    {t("liveView.live")}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-border px-4 py-2">
+                  <span className="text-sm font-medium">{cam.name}</span>
+                  <span className="text-xs text-muted-foreground">{cam.sourceType}</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between border-t border-gray-800 px-4 py-2">
-                <span className="text-sm text-gray-300">{cam.name}</span>
-                <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-xs text-green-400">LIVE</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
