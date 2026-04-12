@@ -1,0 +1,43 @@
+logLevel: warn
+logDestinations: [stdout]
+
+# Disable authentication for internal API access
+authMethod: internal
+authInternalUsers:
+  - user: any
+    ips: []
+    permissions:
+      - action: api
+      - action: publish
+      - action: read
+      - action: playback
+
+# HLS output
+hls: yes
+hlsAddress: :8888
+hlsAllowOrigins: [ "*" ]
+hlsVariant: mpegts
+hlsSegmentCount: 3
+hlsSegmentDuration: 2s
+hlsAlwaysRemux: yes
+
+# RTSP server
+rtsp: yes
+rtspAddress: :8554
+
+webrtc: no
+rtmp: no
+srt: no
+
+# API for dynamic path registration
+api: yes
+apiAddress: :9997
+
+pathDefaults:
+  sourceOnDemandStartTimeout: 15s
+  sourceOnDemandCloseAfter: 60s
+
+paths:
+  # Fallback: accept any path as publisher; backend registers RTSP paths via API
+  all_others:
+    source: publisher

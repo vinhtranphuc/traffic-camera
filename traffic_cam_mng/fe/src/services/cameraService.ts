@@ -10,6 +10,7 @@ export const cameraService = {
   stop: (id: string) => api.put(`/v1/cameras/${id}/stop`),
   getMap: () => api.get("/v1/cameras/map"),
   getStatusSummary: () => api.get("/v1/cameras/status-summary"),
+  getStreamInfo: (id: string) => api.get(`/v1/cameras/${id}/stream-info`),
 };
 
 export const approvalService = {

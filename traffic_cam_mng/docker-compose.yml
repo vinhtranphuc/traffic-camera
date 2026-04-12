@@ -160,6 +160,23 @@ services:
     networks:
       - tcm-network
 
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: tcm-mediamtx
+    restart: unless-stopped
+    expose:
+      - "8888"
+      - "8554"
+      - "9997"
+    ports:
+      - "${MEDIAMTX_HLS_PORT:-8888}:8888"
+      - "${MEDIAMTX_RTSP_PORT:-8554}:8554"
+      - "${MEDIAMTX_API_PORT:-9997}:9997"
+    volumes:
+      - ./docker/mediamtx/mediamtx.yml:/mediamtx.yml:ro
+    networks:
+      - tcm-network
+
   vault:
     image: hashicorp/vault:1.17
     container_name: tcm-vault

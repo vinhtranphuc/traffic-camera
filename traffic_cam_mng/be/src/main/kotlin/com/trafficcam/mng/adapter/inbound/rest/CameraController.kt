@@ -60,6 +60,50 @@ class CameraController(private val cameraService: CameraService) {
     @GetMapping("/status-summary")
     fun statusSummary(@AuthenticationPrincipal p: UserPrincipal): ApiResponse<Map<String, Long>> =
         ApiResponse.ok(cameraService.getStatusSummary(p), "CAMERA_STATUS_SUMMARY", "Status summary")
+
+    @GetMapping("/{id}/stream-info")
+    fun streamInfo(@AuthenticationPrincipal p: UserPrincipal, @PathVariable id: String): ApiResponse<Map<String, Any?>> {
+        val camera = cameraService.getCamera(id, p)
+        val config = camera.connectionConfig
+        val info: Map<String, Any?> = when (camera.sourceType) {
+            "HLS" -> mapOf(
+                "type" to "hls",
+                "url" to (config["url"] as? String ?: ""),
+                "proxied" to false,
+            )
+            "HTTP_MJPEG" -> mapOf(
+                "type" to "mjpeg",
+                "url" to (config["url"] as? String ?: ""),
+                "proxied" to false,
+            )
+            "RTSP" -> {
+                val rtspUrl = buildRtspUrl(config)
+                cameraService.registerMediaMtxPath(camera.id, rtspUrl)
+                mapOf(
+                    "type" to "hls",
+                    "url" to "/hls/${camera.id}/index.m3u8",
+                    "proxied" to true,
+                )
+            }
+            else -> mapOf(
+                "type" to "unsupported",
+                "url" to null,
+                "message" to "Browser không hỗ trợ loại stream: ${camera.sourceType}",
+            )
+        }
+        return ApiResponse.ok(info, "STREAM_INFO", "Stream info")
+    }
+
+    private fun buildRtspUrl(config: Map<String, Any>): String {
+        val host = config["host"] as? String
+        if (host.isNullOrBlank()) return config["url"] as? String ?: ""
+        val port = config["port"] as? String ?: "554"
+        val path = config["path"] as? String ?: ""
+        val user = config["username"] as? String
+        val pass = config["password"] as? String
+        val auth = if (!user.isNullOrBlank()) "${user}:${pass ?: ""}@" else ""
+        return "rtsp://${auth}${host}:${port}${path}"
+    }
 }
 
 @RestController

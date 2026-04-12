@@ -25,6 +25,35 @@ class CameraService(
     private val notificationService: NotificationService,
 ) {
 
+    private val mediamtxApiBase = "http://mediamtx:9997"
+    private val registeredPaths = mutableSetOf<String>()
+
+    /** Register an RTSP source with MediaMTX so it can be served as HLS. */
+    fun registerMediaMtxPath(cameraId: String, rtspUrl: String) {
+        if (registeredPaths.contains(cameraId)) return
+        try {
+            val client = java.net.http.HttpClient.newHttpClient()
+            val json = objectMapper.writeValueAsString(mapOf(
+                "source" to rtspUrl,
+                "sourceOnDemand" to true,
+                "sourceOnDemandStartTimeout" to "15s",
+                "sourceOnDemandCloseAfter" to "60s",
+            ))
+            val uri = java.net.URI.create("$mediamtxApiBase/v3/config/paths/add/$cameraId")
+            val req = java.net.http.HttpRequest.newBuilder(uri)
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json))
+                .build()
+            val resp = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString())
+            // 200 = added, 400 = already exists (path conflict)
+            if (resp.statusCode() in 200..299 || resp.body().contains("already")) {
+                registeredPaths.add(cameraId)
+            }
+        } catch (_: Exception) {
+            // Don't fail stream-info if MediaMTX unreachable
+        }
+    }
+
     fun listCameras(principal: UserPrincipal, pageable: Pageable): Page<CameraResponse> {
         val page = when {
             principal.isCustomer() -> cameraRepo.findByOwnerId(principal.userId, pageable)
