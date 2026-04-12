@@ -23,6 +23,7 @@ class CameraService(
     private val assignmentRepo: JpaAdminAssignmentRepository,
     private val objectMapper: ObjectMapper,
     private val notificationService: NotificationService,
+    private val auditLog: AuditLogService,
 ) {
 
     private val mediamtxApiBase = "http://mediamtx:9997"
@@ -265,7 +266,6 @@ class CameraService(
         camera.updatedAt = Instant.now()
         cameraRepo.save(camera)
 
-        // Notify camera owner
         notificationService.send(
             userId = camera.ownerId,
             type = "CAMERA_APPROVED",
@@ -273,6 +273,8 @@ class CameraService(
             message = "Camera '${camera.name}' đã được phê duyệt và có thể hoạt động",
             data = mapOf("cameraId" to camera.id, "cameraName" to camera.name, "redirectUrl" to "/cameras"),
         )
+        auditLog.log("CAMERA_APPROVED", "Camera", camera.id, principal = principal,
+            newValue = mapOf("name" to camera.name, "approvalId" to approvalId))
 
         return approval.toResponse()
     }
@@ -298,7 +300,6 @@ class CameraService(
         camera.updatedAt = Instant.now()
         cameraRepo.save(camera)
 
-        // Notify camera owner
         notificationService.send(
             userId = camera.ownerId,
             type = "CAMERA_REJECTED",
@@ -306,6 +307,8 @@ class CameraService(
             message = "Camera '${camera.name}' bị từ chối${if (!reason.isNullOrBlank()) ". Lý do: $reason" else ""}",
             data = mapOf("cameraId" to camera.id, "cameraName" to camera.name, "reason" to (reason ?: ""), "redirectUrl" to "/cameras"),
         )
+        auditLog.log("CAMERA_REJECTED", "Camera", camera.id, principal = principal,
+            newValue = mapOf("name" to camera.name, "reason" to (reason ?: "")))
 
         return approval.toResponse()
     }

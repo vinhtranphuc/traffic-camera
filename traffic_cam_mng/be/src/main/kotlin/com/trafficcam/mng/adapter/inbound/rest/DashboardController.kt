@@ -38,4 +38,8 @@ class DashboardController(
     @GetMapping("/camera-status")
     fun cameraStatus(@AuthenticationPrincipal p: UserPrincipal): ApiResponse<Map<String, Long>> =
         ApiResponse.ok(cameraService.getStatusSummary(p), "DASHBOARD_CAMERA_STATUS", "Camera status")
+
+    @GetMapping("/trends")
+    fun trends(@AuthenticationPrincipal p: UserPrincipal): ApiResponse<Map<String, Any>> =
+        ApiResponse.ok(detectionService.getTrends(p), "DASHBOARD_TRENDS", "Trends retrieved")
 }

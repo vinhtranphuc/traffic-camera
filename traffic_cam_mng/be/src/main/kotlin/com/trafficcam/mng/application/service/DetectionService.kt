@@ -144,6 +144,55 @@ class DetectionService(
         return mapOf("total" to total, "byType" to byType, "byDate" to byDate)
     }
 
+    /** Today vs yesterday, this week vs last week. */
+    fun getTrends(principal: UserPrincipal): Map<String, Any> {
+        val cameraIds = getScopedCameraIds(principal)
+        if (cameraIds.isEmpty()) return mapOf("today" to 0L, "yesterday" to 0L, "todayChange" to 0, "thisWeek" to 0L, "lastWeek" to 0L, "weekChange" to 0)
+
+        val now = Instant.now()
+        val startOfToday = now.truncatedTo(ChronoUnit.DAYS)
+        val startOfYesterday = startOfToday.minus(1, ChronoUnit.DAYS)
+        val startOfThisWeek = startOfToday.minus(7, ChronoUnit.DAYS)
+        val startOfLastWeek = startOfToday.minus(14, ChronoUnit.DAYS)
+
+        val today = detectionRepo.countByCameraIdInAndTimestampAfter(cameraIds, startOfToday)
+        val yesterdayAll = detectionRepo.countByCameraIdInAndTimestampAfter(cameraIds, startOfYesterday)
+        val yesterday = yesterdayAll - today
+        val thisWeekCount = detectionRepo.countByCameraIdInAndTimestampAfter(cameraIds, startOfThisWeek)
+        val lastWeekAll = detectionRepo.countByCameraIdInAndTimestampAfter(cameraIds, startOfLastWeek)
+        val lastWeek = lastWeekAll - thisWeekCount
+
+        return mapOf(
+            "today" to today,
+            "yesterday" to yesterday,
+            "todayChange" to percentChange(yesterday, today),
+            "thisWeek" to thisWeekCount,
+            "lastWeek" to lastWeek,
+            "weekChange" to percentChange(lastWeek, thisWeekCount),
+        )
+    }
+
+    /** Detections per hour for camera (last 24h) — for peak hour chart. Always returns 24 bins. */
+    fun getPeakHours(principal: UserPrincipal, cameraId: String): List<Map<String, Any>> {
+        val byHour = (0..23).associateWith { 0L }.toMutableMap()
+        val cameraIds = getScopedCameraIds(principal)
+        if (cameraId in cameraIds) {
+            val since = Instant.now().minus(24, ChronoUnit.HOURS)
+            val events = detectionRepo.findByCameraIdIn(listOf(cameraId), Pageable.unpaged()).content
+                .filter { it.timestamp.isAfter(since) }
+            for (e in events) {
+                val h = e.timestamp.atZone(java.time.ZoneId.systemDefault()).hour
+                byHour[h] = (byHour[h] ?: 0) + 1
+            }
+        }
+        return byHour.toSortedMap().map { (h, c) -> mapOf("hour" to h, "count" to c) }
+    }
+
+    private fun percentChange(previous: Long, current: Long): Int {
+        if (previous == 0L) return if (current == 0L) 0 else 100
+        return (((current - previous).toDouble() / previous) * 100).toInt()
+    }
+
     private fun getScopedCameraIds(principal: UserPrincipal): List<String> {
         val cameras = when {
             principal.isCustomer() -> cameraRepo.findByOwnerId(principal.userId, Pageable.unpaged()).content

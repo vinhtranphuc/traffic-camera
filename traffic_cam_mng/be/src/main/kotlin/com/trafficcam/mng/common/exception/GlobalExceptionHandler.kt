@@ -42,8 +42,20 @@ class GlobalExceptionHandler {
             .body(ApiResponse.error("VALIDATION_ERROR", "Validation failed", errors))
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException::class)
+    fun handleAccessDenied(ex: org.springframework.security.access.AccessDeniedException): ResponseEntity<ApiResponse<Nothing>> =
+        ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(ApiResponse.error("ACCESS_DENIED", "Bạn không có quyền truy cập chức năng này"))
+
+    @ExceptionHandler(org.springframework.security.authorization.AuthorizationDeniedException::class)
+    fun handleAuthorizationDenied(ex: org.springframework.security.authorization.AuthorizationDeniedException): ResponseEntity<ApiResponse<Nothing>> =
+        ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(ApiResponse.error("ACCESS_DENIED", "Bạn không có quyền truy cập chức năng này"))
+
     @ExceptionHandler(Exception::class)
-    fun handleGeneric(ex: Exception): ResponseEntity<ApiResponse<Nothing>> =
-        ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+    fun handleGeneric(ex: Exception): ResponseEntity<ApiResponse<Nothing>> {
+        org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler::class.java).error("Unhandled exception", ex)
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(ApiResponse.error("INTERNAL_ERROR", "An unexpected error occurred"))
+    }
 }

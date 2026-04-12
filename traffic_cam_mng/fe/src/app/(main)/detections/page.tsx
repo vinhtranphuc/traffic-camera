@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Download, Search } from "lucide-react";
 import { detectionService } from "@/services/cameraService";
 import api from "@/lib/api";
+import Pagination from "@/components/shared/Pagination";
 
 const OBJECT_TYPES = ["", "car", "truck", "bus", "motorcycle", "person", "bicycle"];
 
@@ -14,6 +15,7 @@ export default function DetectionsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
+  const [size, setSize] = useState(25);
 
   const [filters, setFilters] = useState({
     plateText: "",
@@ -24,7 +26,7 @@ export default function DetectionsPage() {
 
   const load = () => {
     setLoading(true);
-    const params: any = { size: 20, page };
+    const params: any = { size, page };
     if (filters.plateText) params.plateText = filters.plateText;
     if (filters.objectType) params.objectType = filters.objectType;
     if (filters.from) params.from = filters.from;
@@ -39,7 +41,7 @@ export default function DetectionsPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [page]);
+  useEffect(() => { load(); }, [page, size]);
 
   const handleSearch = () => { setPage(0); load(); };
 
@@ -147,29 +149,13 @@ export default function DetectionsPage() {
             </tbody>
           </table>
         </div>
-        {total > 20 && (
-          <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm">
-            <span className="text-muted-foreground">
-              {t("common.page")} {page + 1} / {Math.ceil(total / 20)} &middot; {total} {t("common.rows")}
-            </span>
-            <div className="flex gap-2">
-              <button
-                disabled={page === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="rounded border border-border px-3 py-1 disabled:opacity-50"
-              >
-                {t("common.back")}
-              </button>
-              <button
-                disabled={(page + 1) * 20 >= total}
-                onClick={() => setPage((p) => p + 1)}
-                className="rounded border border-border px-3 py-1 disabled:opacity-50"
-              >
-                {t("common.next")}
-              </button>
-            </div>
-          </div>
-        )}
+        <Pagination
+          page={page}
+          size={size}
+          total={total}
+          onPageChange={setPage}
+          onSizeChange={(s) => { setSize(s); setPage(0); }}
+        />
       </div>
     </div>
   );

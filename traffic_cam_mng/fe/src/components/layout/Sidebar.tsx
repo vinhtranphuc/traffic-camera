@@ -14,6 +14,7 @@ import {
   Users,
   Cog,
   LogOut,
+  Shield,
   X,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
@@ -41,6 +42,7 @@ export default function Sidebar({ onClose }: Props = {}) {
   const adminItems = [
     { href: "/admin/approvals", label: t("nav.approvals"), icon: UserCheck, roles: ["ADMIN", "SUPER_ADMIN"] },
     { href: "/admin/customers", label: t("nav.users"), icon: Users, roles: ["ADMIN", "SUPER_ADMIN", "SYSTEM_ADMIN"] },
+    { href: "/admin/audit-logs", label: "Nhật ký hệ thống", icon: Shield, roles: ["ADMIN", "SUPER_ADMIN", "SYSTEM_ADMIN"] },
     { href: "/system/config", label: t("nav.systemConfig"), icon: Cog, roles: ["SYSTEM_ADMIN"] },
   ];
 

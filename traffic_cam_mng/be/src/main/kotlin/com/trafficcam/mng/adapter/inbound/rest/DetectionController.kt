@@ -51,6 +51,13 @@ class DetectionController(private val detectionService: DetectionService) {
     ): ApiResponse<Map<String, Any>> =
         ApiResponse.ok(detectionService.getStats(p, days), "DETECTION_STATS", "Stats retrieved")
 
+    @GetMapping("/peak-hours/{cameraId}")
+    fun peakHours(
+        @AuthenticationPrincipal p: UserPrincipal,
+        @PathVariable cameraId: String,
+    ): ApiResponse<List<Map<String, Any>>> =
+        ApiResponse.ok(detectionService.getPeakHours(p, cameraId), "DETECTION_PEAK_HOURS", "Peak hours retrieved")
+
     @GetMapping("/export")
     fun export(
         @AuthenticationPrincipal p: UserPrincipal,

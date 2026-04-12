@@ -22,6 +22,7 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenProvider: JwtTokenProvider,
     private val rateLimiter: LoginRateLimiter,
+    private val auditLog: AuditLogService,
 ) {
 
     @Transactional
@@ -41,8 +42,8 @@ class AuthService(
             throw ForbiddenException("AUTH_LOCKED", "Tài khoản đã bị khóa: ${user.lockedReason ?: "Liên hệ quản trị viên"}")
         }
 
-        // Successful login resets rate counter
         rateLimiter.reset(request.username, ipAddress)
+        auditLog.log("LOGIN", "User", user.id, userId = user.id, username = user.username)
 
         val accessToken = jwtTokenProvider.generateAccessToken(user.id, user.username, user.role.name)
         val refreshToken = jwtTokenProvider.generateRefreshToken()
