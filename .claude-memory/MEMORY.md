@@ -20,3 +20,4 @@ Danh sách tất cả memory files trong dự án. Đọc file này đầu tiên
 ## References
 - [project_public_cameras.md](project_public_cameras.md) - Danh sách API camera giao thông công cộng: Caltrans, TfL, VDOT, 511NY, MnDOT
 - [reference_dvt_camera.md](reference_dvt_camera.md) - Hệ thống DVT Camera (123.19.195.7:3001): 3 camera RTSP live ở Đà Nẵng
+- [reference_role_rules.md](reference_role_rules.md) - Role creation / notification routing / data scoping (prompts/3.md)

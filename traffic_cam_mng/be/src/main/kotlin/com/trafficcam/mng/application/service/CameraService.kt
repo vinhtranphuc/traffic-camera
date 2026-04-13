@@ -114,23 +114,25 @@ class CameraService(
         return camera.toResponse()
     }
 
+    /**
+     * Notification routing rule (prompts/3.md):
+     *   Customer has an Admin assigned → notify only that Admin.
+     *   Customer has no Admin → notify all SuperAdmins (SuperAdmin takes the Admin role).
+     *   Do not notify all admins as fallback.
+     */
     private fun notifyAdminsOfApprovalRequest(camera: CameraEntity, requesterId: String) {
-        // Find admins assigned to this customer
-        val adminIds = assignmentRepo.findAll()
-            .filter { it.customerId == requesterId }
-            .map { it.adminId }
-            .toMutableList()
-        // Also notify all super admins
-        userRepo.findByRole(RoleEnum.SUPER_ADMIN, org.springframework.data.domain.Pageable.unpaged())
-            .content.forEach { adminIds.add(it.id) }
-        // If no admin assigned, notify all admins
-        if (adminIds.none { userRepo.findById(it).map { u -> u.role == RoleEnum.ADMIN }.orElse(false) }) {
-            userRepo.findByRole(RoleEnum.ADMIN, org.springframework.data.domain.Pageable.unpaged())
-                .content.forEach { adminIds.add(it.id) }
+        val assignedAdminIds = assignmentRepo.findByCustomerId(requesterId).map { it.adminId }
+
+        val targetIds: List<String> = if (assignedAdminIds.isNotEmpty()) {
+            assignedAdminIds
+        } else {
+            // No admin → notify all SuperAdmins (they take the admin role for unassigned customers)
+            userRepo.findByRole(RoleEnum.SUPER_ADMIN, org.springframework.data.domain.Pageable.unpaged())
+                .content.map { it.id }
         }
 
         val requester = userRepo.findById(requesterId).orElse(null)
-        adminIds.distinct().forEach { adminId ->
+        targetIds.distinct().forEach { adminId ->
             notificationService.send(
                 userId = adminId,
                 type = "CAMERA_APPROVAL_REQUESTED",

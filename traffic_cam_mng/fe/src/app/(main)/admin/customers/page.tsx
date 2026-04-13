@@ -22,11 +22,14 @@ export default function CustomersPage() {
   const [roleFilter, setRoleFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [lockTarget, setLockTarget] = useState<any>(null);
-  const [form, setForm] = useState({ username: "", password: "", fullName: "", role: "CUSTOMER" });
+  const [form, setForm] = useState<any>({
+    username: "", password: "", fullName: "", role: "CUSTOMER",
+    adminId: "", customerIds: [] as string[],
+  });
 
   const availableRoles =
     currentRole === "SYSTEM_ADMIN" ? ["SUPER_ADMIN"] :
-    currentRole === "SUPER_ADMIN" ? ["ADMIN"] :
+    currentRole === "SUPER_ADMIN" ? ["ADMIN", "CUSTOMER"] :
     currentRole === "ADMIN" ? ["CUSTOMER"] : [];
 
   const load = () => {
@@ -39,8 +42,11 @@ export default function CustomersPage() {
 
   useEffect(() => {
     load();
-    if (availableRoles.length > 0) setForm((f) => ({ ...f, role: availableRoles[0] }));
+    if (availableRoles.length > 0) setForm((f: any) => ({ ...f, role: availableRoles[0] }));
   }, []);
+
+  const availableAdmins = useMemo(() => users.filter((u: any) => u.role === "ADMIN" && !u.isLocked), [users]);
+  const availableCustomers = useMemo(() => users.filter((u: any) => u.role === "CUSTOMER" && !u.isLocked), [users]);
 
   const filtered = useMemo(() => users.filter((u: any) => {
     if (search) {
@@ -53,10 +59,22 @@ export default function CustomersPage() {
 
   const handleCreate = async () => {
     try {
-      await userService.createUser(form);
+      const payload: any = {
+        username: form.username,
+        password: form.password,
+        fullName: form.fullName,
+        role: form.role,
+      };
+      if (form.role === "ADMIN" && form.customerIds?.length > 0) {
+        payload.customerIds = form.customerIds;
+      }
+      if (form.role === "CUSTOMER" && form.adminId) {
+        payload.adminId = form.adminId;
+      }
+      await userService.createUser(payload);
       toast.success(`Đã tạo người dùng ${form.username}`);
       setShowCreate(false);
-      setForm({ username: "", password: "", fullName: "", role: availableRoles[0] || "CUSTOMER" });
+      setForm({ username: "", password: "", fullName: "", role: availableRoles[0] || "CUSTOMER", adminId: "", customerIds: [] });
       load();
     } catch (e: any) {
       toast.error(e.response?.data?.message || t("common.error"));
@@ -76,6 +94,15 @@ export default function CustomersPage() {
       setLockTarget(null);
       load();
     } catch { toast.error(t("common.error")); }
+  };
+
+  const toggleCustomer = (id: string) => {
+    setForm((f: any) => ({
+      ...f,
+      customerIds: f.customerIds.includes(id)
+        ? f.customerIds.filter((x: string) => x !== id)
+        : [...f.customerIds, id],
+    }));
   };
 
   const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none";
@@ -108,12 +135,7 @@ export default function CustomersPage() {
         </select>
       </div>
 
-      <Modal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        title={t("user.createUser")}
-        size="md"
-      >
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title={t("user.createUser")} size="md">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -135,6 +157,48 @@ export default function CustomersPage() {
               {availableRoles.map((r) => <option key={r} value={r}>{t(`user.roles.${r}` as any)}</option>)}
             </select>
           </div>
+
+          {form.role === "CUSTOMER" && currentRole === "SUPER_ADMIN" && (
+            <div>
+              <label className="mb-1 block text-sm text-muted-foreground">Admin quản lý (tùy chọn)</label>
+              <select value={form.adminId} onChange={(e) => setForm({ ...form, adminId: e.target.value })} className={inputCls}>
+                <option value="">-- Không chọn: SuperAdmin đảm nhận --</option>
+                {availableAdmins.map((a: any) => (
+                  <option key={a.id} value={a.id}>{a.fullName} ({a.username})</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Nếu không chọn, SuperAdmin sẽ tự đảm nhận vai trò quản lý customer này.
+              </p>
+            </div>
+          )}
+
+          {form.role === "ADMIN" && currentRole === "SUPER_ADMIN" && (
+            <div>
+              <label className="mb-1 block text-sm text-muted-foreground">Gán khách hàng quản lý (tùy chọn)</label>
+              {availableCustomers.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Chưa có customer nào. Có thể gán sau.</p>
+              ) : (
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-background p-2">
+                  {availableCustomers.map((c: any) => (
+                    <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded p-1.5 hover:bg-accent">
+                      <input
+                        type="checkbox"
+                        checked={form.customerIds.includes(c.id)}
+                        onChange={() => toggleCustomer(c.id)}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm">{c.fullName} <span className="text-muted-foreground">({c.username})</span></span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {form.customerIds.length > 0 && (
+                <p className="mt-1 text-xs text-primary">Đã chọn {form.customerIds.length} customer.</p>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 border-t border-border pt-4">
             <Button variant="outline" onClick={() => setShowCreate(false)}>{t("common.cancel")}</Button>
             <Button variant="success" onClick={handleCreate}>{t("common.create")}</Button>

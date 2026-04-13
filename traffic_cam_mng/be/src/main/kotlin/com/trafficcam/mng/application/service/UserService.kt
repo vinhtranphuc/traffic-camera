@@ -1,7 +1,9 @@
 package com.trafficcam.mng.application.service
 
+import com.trafficcam.mng.adapter.outbound.persistence.entity.AdminCustomerAssignmentEntity
 import com.trafficcam.mng.adapter.outbound.persistence.entity.RoleEnum
 import com.trafficcam.mng.adapter.outbound.persistence.entity.UserEntity
+import com.trafficcam.mng.adapter.outbound.persistence.repository.JpaAdminAssignmentRepository
 import com.trafficcam.mng.adapter.outbound.persistence.repository.JpaUserRepository
 import com.trafficcam.mng.adapter.outbound.persistence.repository.JpaUserSessionRepository
 import com.trafficcam.mng.application.dto.user.*
@@ -19,6 +21,7 @@ import java.util.*
 class UserService(
     private val userRepo: JpaUserRepository,
     private val sessionRepo: JpaUserSessionRepository,
+    private val assignmentRepo: JpaAdminAssignmentRepository,
     private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -148,7 +151,60 @@ class UserService(
             email = request.email,
             phone = request.phone,
         )
-        return userRepo.save(user).toResponse()
+        userRepo.save(user)
+
+        // Handle assignment linkage based on role
+        when (targetRole) {
+            RoleEnum.ADMIN -> {
+                // SuperAdmin creates Admin: optionally assign customers to this admin
+                request.customerIds?.filter { it.isNotBlank() }?.forEach { customerId ->
+                    val customer = userRepo.findById(customerId).orElse(null)
+                        ?: throw ValidationException("CUSTOMER_NOT_FOUND", "Khách hàng $customerId không tồn tại")
+                    if (customer.role != RoleEnum.CUSTOMER) {
+                        throw ValidationException("NOT_CUSTOMER", "Chỉ có thể gán Customer cho Admin")
+                    }
+                    // Remove any existing assignment for this customer (1 customer = 1 admin max)
+                    assignmentRepo.findByCustomerId(customerId).forEach { assignmentRepo.delete(it) }
+                    assignmentRepo.save(AdminCustomerAssignmentEntity(
+                        adminId = user.id,
+                        customerId = customerId,
+                        assignedAt = Instant.now(),
+                        assignedBy = principal.userId,
+                    ))
+                }
+            }
+            RoleEnum.CUSTOMER -> {
+                // Admin or SuperAdmin creates Customer.
+                // If adminId provided: assign to that admin.
+                // If empty/null and creator is Admin: auto-assign to creator.
+                // If empty/null and creator is SuperAdmin: no assignment (SuperAdmin takes the role).
+                val adminId = when {
+                    !request.adminId.isNullOrBlank() -> request.adminId
+                    principal.isAdmin() -> principal.userId
+                    else -> null
+                }
+                if (adminId != null) {
+                    val admin = userRepo.findById(adminId).orElse(null)
+                        ?: throw ValidationException("ADMIN_NOT_FOUND", "Admin $adminId không tồn tại")
+                    if (admin.role != RoleEnum.ADMIN) {
+                        throw ValidationException("NOT_ADMIN", "User được chỉ định không phải Admin")
+                    }
+                    // 1 customer = 1 admin max (enforce at service level)
+                    if (assignmentRepo.findByCustomerId(user.id).isNotEmpty()) {
+                        throw ConflictException("CUSTOMER_ALREADY_ASSIGNED", "Customer đã có Admin quản lý")
+                    }
+                    assignmentRepo.save(AdminCustomerAssignmentEntity(
+                        adminId = adminId,
+                        customerId = user.id,
+                        assignedAt = Instant.now(),
+                        assignedBy = principal.userId,
+                    ))
+                }
+            }
+            else -> { /* SUPER_ADMIN, SYSTEM_ADMIN: no assignment */ }
+        }
+
+        return user.toResponse()
     }
 
     @Transactional
@@ -180,7 +236,7 @@ class UserService(
     // --- Access control helpers ---
 
     private fun getAllowedViewRoles(principal: UserPrincipal): List<RoleEnum> = when {
-        principal.isSystemAdmin() -> listOf(RoleEnum.SUPER_ADMIN)
+        principal.isSystemAdmin() -> listOf(RoleEnum.SUPER_ADMIN, RoleEnum.ADMIN, RoleEnum.CUSTOMER)
         principal.isSuperAdmin() -> listOf(RoleEnum.ADMIN, RoleEnum.CUSTOMER)
         principal.isAdmin() -> listOf(RoleEnum.CUSTOMER)
         else -> emptyList()
@@ -196,7 +252,7 @@ class UserService(
     private fun validateCreateAccess(principal: UserPrincipal, targetRole: RoleEnum) {
         val allowed = when {
             principal.isSystemAdmin() -> listOf(RoleEnum.SUPER_ADMIN)
-            principal.isSuperAdmin() -> listOf(RoleEnum.ADMIN)
+            principal.isSuperAdmin() -> listOf(RoleEnum.ADMIN, RoleEnum.CUSTOMER)
             principal.isAdmin() -> listOf(RoleEnum.CUSTOMER)
             else -> emptyList()
         }

@@ -10,6 +10,10 @@ data class CreateUserRequest(
     @field:NotBlank val role: String, // ADMIN, CUSTOMER, SUPER_ADMIN
     val email: String? = null,
     val phone: String? = null,
+    /** When creating an ADMIN: list of customer IDs to assign under this admin. */
+    val customerIds: List<String>? = null,
+    /** When creating a CUSTOMER: the admin (or SuperAdmin) to manage this customer. */
+    val adminId: String? = null,
 )
 
 data class UpdateUserRequest(
