@@ -489,6 +489,8 @@
                     document.getElementById('youtube-url').value = preset.url;
                 } else if (preset.type === 'mjpeg') {
                     document.getElementById('mjpeg-url').value = preset.url;
+                } else if (preset.type === 'rtsp') {
+                    fillRtspFields(preset.url);
                 } else if (preset.type === 'webcam') {
                     document.getElementById('webcam-device').value = preset.url || '0';
                 } else if (preset.type === 'file') {
@@ -532,6 +534,25 @@
                     break;
             }
             return { type, url, interval };
+        }
+
+        // --- Parse RTSP URL into form fields ---
+        function fillRtspFields(url) {
+            try {
+                // rtsp://user:pass@host:port/path?query
+                const m = url.match(/^rtsp:\/\/(?:([^:]+):([^@]*)@)?([^:/]+)(?::(\d+))?(\/.*)?$/);
+                if (m) {
+                    document.getElementById('rtsp-user').value = decodeURIComponent(m[1] || '');
+                    document.getElementById('rtsp-pass').value = decodeURIComponent(m[2] || '');
+                    document.getElementById('rtsp-host').value = m[3] || '';
+                    document.getElementById('rtsp-port').value = m[4] || '554';
+                    document.getElementById('rtsp-path').value = m[5] || '/stream';
+                }
+            } catch (e) {
+                // fallback: just put full url in host
+                document.getElementById('rtsp-host').value = url;
+            }
+            updateRtspPreview();
         }
 
         // --- RTSP URL builder ---

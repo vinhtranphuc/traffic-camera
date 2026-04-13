@@ -112,6 +112,28 @@ CAMERA_PRESETS: list[dict] = [
         "type": "youtube",
         "url": "https://www.youtube.com/watch?v=G_G8A6JU_LI",
     },
+    # --- DVT Camera System (Da Nang - RTSP Live) ---
+    {
+        "id": "dvt-cam1",
+        "name": "DVT Camera 1",
+        "group": "Da Nang - DVT RTSP",
+        "type": "rtsp",
+        "url": "rtsp://admin:dvt%4012345@123.19.195.7:554/1/1?transmode=unicast&profile=v",
+    },
+    {
+        "id": "dvt-cam2",
+        "name": "DVT Camera 2",
+        "group": "Da Nang - DVT RTSP",
+        "type": "rtsp",
+        "url": "rtsp://admin:dvt%4012345@123.19.195.7:555/1/1?transmode=unicast&profile=vam",
+    },
+    {
+        "id": "dvt-cam3",
+        "name": "DVT Camera 3",
+        "group": "Da Nang - DVT RTSP",
+        "type": "rtsp",
+        "url": "rtsp://admin:tamky2025@123.19.51.240:558/1/1?transmode=unicast&profile=va",
+    },
 ]
 
 

@@ -7,12 +7,12 @@ from .base import BaseConfig
 
 @dataclass
 class DevConfig(BaseConfig):
-    """Dev config using Caltrans LA traffic camera snapshots."""
+    """Dev config using RTSP stream from DVT camera system."""
 
-    CAMERA_SOURCE: str = "snapshot"
+    CAMERA_SOURCE: str = "rtsp"
     CAMERA_URL: str = (
-        "https://cwwp2.dot.ca.gov/data/d7/cctv/image/"
-        "i110196avenue26offramp/i110196avenue26offramp.jpg"
+        "rtsp://admin:dvt%4012345@123.19.195.7:554"
+        "/1/1?transmode=unicast&profile=v"
     )
     ENABLE_LOGGING: bool = True
-    PROCESS_EVERY_N: int = 1  # Process every frame (snapshots are slow)
+    PROCESS_EVERY_N: int = 2  # Skip every other frame (RTSP is 15fps)

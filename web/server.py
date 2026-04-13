@@ -125,7 +125,7 @@ class StreamManager:
 
     def _ensure_detector(self) -> None:
         if self.detector is None or not self.detector.is_loaded:
-            self.detector = VehicleDetector(model_path="data/models/yolov8n.pt")
+            self.detector = VehicleDetector(model_path="data/models/yolov8s.pt")
             self.detector.load_model()
 
     def _ensure_ocr(self) -> None:
