@@ -14,6 +14,7 @@ Danh sách tất cả memory files trong dự án. Đọc file này đầu tiên
 - [feedback_workflow.md](feedback_workflow.md) - Mỗi thay đổi phải ghi memory + git commit, không được bỏ sót
 - [feedback_full_spec_implementation.md](feedback_full_spec_implementation.md) - Implement full spec, không bỏ bớt features
 - [feedback_rebuild_after_fix.md](feedback_rebuild_after_fix.md) - Luôn rebuild Docker sau khi fix, không dùng workaround runtime
+- [feedback_rest_status_codes.md](feedback_rest_status_codes.md) - Trả đúng HTTP status: 400 cho malformed/type-mismatch, 401 cho unauth, không 500
 
 ## Decisions
 

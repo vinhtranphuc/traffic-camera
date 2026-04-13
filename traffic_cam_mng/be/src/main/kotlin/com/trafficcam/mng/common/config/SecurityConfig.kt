@@ -1,15 +1,18 @@
 package com.trafficcam.mng.common.config
 
 import com.trafficcam.mng.common.security.JwtAuthenticationFilter
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
+import org.springframework.http.MediaType
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 
@@ -48,9 +51,22 @@ class SecurityConfig(
                     .anyRequest().authenticated()
             }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+            // Unauthenticated requests to protected endpoints should return 401, not the
+            // default 403. 401 = "you are anonymous, authenticate"; 403 = "you are known
+            // but forbidden". Clients rely on this distinction to trigger a login flow.
+            .exceptionHandling { it.authenticationEntryPoint(restAuthenticationEntryPoint()) }
 
         return http.build()
     }
+
+    private fun restAuthenticationEntryPoint(): AuthenticationEntryPoint =
+        AuthenticationEntryPoint { _, response, _ ->
+            response.status = HttpServletResponse.SC_UNAUTHORIZED
+            response.contentType = MediaType.APPLICATION_JSON_VALUE
+            response.writer.write(
+                """{"success":false,"code":"UNAUTHENTICATED","message":"Yêu cầu đăng nhập","errors":null}"""
+            )
+        }
 
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()

@@ -52,6 +52,26 @@ class GlobalExceptionHandler {
         ResponseEntity.status(HttpStatus.FORBIDDEN)
             .body(ApiResponse.error("ACCESS_DENIED", "Bạn không có quyền truy cập chức năng này"))
 
+    /**
+     * Malformed JSON body or type mismatch during request body deserialization.
+     * Without this handler, Jackson errors fall into the generic 500 handler.
+     * Treat client-side payload problems as 400 so clients can recover.
+     */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException::class)
+    fun handleMessageNotReadable(
+        ex: org.springframework.http.converter.HttpMessageNotReadableException
+    ): ResponseEntity<ApiResponse<Nothing>> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ApiResponse.error("MALFORMED_REQUEST", "Body không hợp lệ hoặc sai kiểu dữ liệu"))
+
+    /** Path/query parameter type mismatch (e.g. non-numeric id). */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException::class)
+    fun handleTypeMismatch(
+        ex: org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+    ): ResponseEntity<ApiResponse<Nothing>> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ApiResponse.error("INVALID_PARAMETER", "Tham số '${ex.name}' không hợp lệ"))
+
     @ExceptionHandler(Exception::class)
     fun handleGeneric(ex: Exception): ResponseEntity<ApiResponse<Nothing>> {
         org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler::class.java).error("Unhandled exception", ex)
