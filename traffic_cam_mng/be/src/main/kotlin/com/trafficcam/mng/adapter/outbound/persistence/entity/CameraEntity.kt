@@ -27,6 +27,7 @@ class CameraEntity(
     @Column(precision = 10, scale = 7) var longitude: BigDecimal? = null,
 
     @Column(name = "detection_settings", columnDefinition = "JSON") var detectionSettings: String? = null,
+    @Column(name = "detection_enabled", nullable = false) var detectionEnabled: Boolean = false,
     @Column(name = "roi_config", columnDefinition = "JSON") var roiConfig: String? = null,
     @Column(name = "schedule_config", columnDefinition = "JSON") var scheduleConfig: String? = null,
     @Column(name = "thumbnail_url", length = 500) var thumbnailUrl: String? = null,

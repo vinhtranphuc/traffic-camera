@@ -22,3 +22,4 @@ Danh sách tất cả memory files trong dự án. Đọc file này đầu tiên
 - [reference_dvt_camera.md](reference_dvt_camera.md) - Hệ thống DVT Camera (123.19.195.7:3001): 3 camera RTSP live ở Đà Nẵng
 - [reference_role_rules.md](reference_role_rules.md) - Role creation / notification routing / data scoping (prompts/3.md)
 - [reference_project_standards.md](reference_project_standards.md) - Standards consolidated: 3-role review, ripple effect, API format, naming, security 5 layers, test bar
+- [reference_detection_toggle.md](reference_detection_toggle.md) - Live-view detection badge: detection_enabled vs detection_settings độc lập, save-while-off không bật

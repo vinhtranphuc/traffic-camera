@@ -219,6 +219,11 @@
     "live": "TRỰC TIẾP",
     "connecting": "Đang kết nối...",
     "error": "Không thể kết nối stream",
-    "noActive": "Không có camera nào đang hoạt động"
+    "noActive": "Không có camera nào đang hoạt động",
+    "detectionMode": "Chế độ nhận diện",
+    "detectionOn": "Đã bật nhận diện",
+    "detectionOff": "Đã tắt nhận diện",
+    "save": "Lưu",
+    "revert": "Hoàn tác"
   }
 }

@@ -21,6 +21,7 @@ data class UpdateCameraRequest(
     val latitude: BigDecimal? = null,
     val longitude: BigDecimal? = null,
     val detectionSettings: Map<String, Any>? = null,
+    val detectionEnabled: Boolean? = null,
     val roiConfig: List<Map<String, Any>>? = null,
     val scheduleConfig: Map<String, Any>? = null,
 )
@@ -42,6 +43,7 @@ data class CameraResponse(
     val latitude: BigDecimal?,
     val longitude: BigDecimal?,
     val detectionSettings: Map<String, Any>?,
+    val detectionEnabled: Boolean,
     val roiConfig: List<Map<String, Any>>?,
     val scheduleConfig: Map<String, Any>?,
     val thumbnailUrl: String?,

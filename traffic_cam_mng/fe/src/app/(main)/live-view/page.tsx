@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cameraService } from "@/services/cameraService";
 import CameraStream from "@/components/camera/CameraStream";
+import DetectionToggleBadge from "@/components/camera/DetectionToggleBadge";
 
 export default function LiveViewPage() {
   const t = useTranslations();
@@ -35,6 +36,16 @@ export default function LiveViewPage() {
                   <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
                   {t("liveView.live")}
                 </span>
+                <DetectionToggleBadge
+                  cameraId={cam.id}
+                  detectionEnabled={!!cam.detectionEnabled}
+                  detectionSettings={cam.detectionSettings}
+                  onChange={(next) =>
+                    setCameras((prev) =>
+                      prev.map((c) => (c.id === cam.id ? { ...c, ...next } : c))
+                    )
+                  }
+                />
               </div>
               <div className="flex items-center justify-between border-t border-border px-4 py-2">
                 <span className="text-sm font-medium">{cam.name}</span>

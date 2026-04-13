@@ -162,6 +162,7 @@ class CameraService(
         request.latitude?.let { camera.latitude = it }
         request.longitude?.let { camera.longitude = it }
         request.detectionSettings?.let { camera.detectionSettings = objectMapper.writeValueAsString(it) }
+        request.detectionEnabled?.let { camera.detectionEnabled = it }
         request.roiConfig?.let { camera.roiConfig = objectMapper.writeValueAsString(it) }
         request.scheduleConfig?.let { camera.scheduleConfig = objectMapper.writeValueAsString(it) }
         camera.updatedAt = Instant.now()
@@ -390,6 +391,7 @@ class CameraService(
             groupId = groupId, groupName = group?.name,
             latitude = latitude, longitude = longitude,
             detectionSettings = detectionSettings?.let { objectMapper.readValue(it) },
+            detectionEnabled = detectionEnabled,
             roiConfig = roiConfig?.let { objectMapper.readValue(it) },
             scheduleConfig = scheduleConfig?.let { objectMapper.readValue(it) },
             thumbnailUrl = thumbnailUrl, rejectReason = rejectReason,

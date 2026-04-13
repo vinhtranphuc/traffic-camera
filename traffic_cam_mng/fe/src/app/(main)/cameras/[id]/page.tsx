@@ -21,6 +21,8 @@ export default function CameraDetailPage() {
     detectPersons: false,
     detectPlates: false,
   });
+  const [detectionEnabled, setDetectionEnabled] = useState(false);
+  const [togglingEnabled, setTogglingEnabled] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -30,6 +32,7 @@ export default function CameraDetailPage() {
         setCamera(data);
         setRoi(data.roiConfig || []);
         setDetection({ ...detection, ...(data.detectionSettings || {}) });
+        setDetectionEnabled(!!data.detectionEnabled);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -45,6 +48,21 @@ export default function CameraDetailPage() {
   const saveDetection = async () => {
     await cameraService.update(id, { detectionSettings: detection });
     toast.success(t("common.success"));
+  };
+
+  const toggleDetectionEnabled = async () => {
+    if (togglingEnabled) return;
+    const next = !detectionEnabled;
+    setTogglingEnabled(true);
+    try {
+      await cameraService.update(id, { detectionEnabled: next });
+      setDetectionEnabled(next);
+      toast.success(next ? t("liveView.detectionOn") : t("liveView.detectionOff"));
+    } catch {
+      toast.error(t("common.error"));
+    } finally {
+      setTogglingEnabled(false);
+    }
   };
 
   if (loading || !camera) return <div className="p-6">{t("common.loading")}</div>;
@@ -66,7 +84,22 @@ export default function CameraDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Detection Settings */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="mb-4 text-sm font-semibold">{t("camera.detectionSettings")}</h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">{t("camera.detectionSettings")}</h3>
+            <button
+              type="button"
+              onClick={toggleDetectionEnabled}
+              disabled={togglingEnabled}
+              aria-pressed={detectionEnabled}
+              className={[
+                "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold text-white transition-colors",
+                detectionEnabled ? "bg-primary hover:bg-primary/90" : "bg-gray-500/80 hover:bg-gray-500",
+                togglingEnabled ? "cursor-wait opacity-80" : "cursor-pointer",
+              ].join(" ")}
+            >
+              {t("liveView.detectionMode")}
+            </button>
+          </div>
           <div className="space-y-3">
             <label className="flex items-center justify-between">
               <span className="text-sm">{t("camera.detectVehicles")}</span>

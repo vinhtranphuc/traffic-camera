@@ -42,6 +42,7 @@ export const cameraFormSchema = z.object({
     detectPersons: z.boolean().default(false),
     detectPlates: z.boolean().default(false),
   }).optional(),
+  detectionEnabled: z.boolean().default(false),
 });
 
 export type CameraFormData = z.infer<typeof cameraFormSchema>;
