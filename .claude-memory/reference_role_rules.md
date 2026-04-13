@@ -45,6 +45,10 @@ date: 2026-04-13
 - Admin filter bị ép về scope của mình (không bypass được)
 - **Quan trọng**: Nếu Admin filter userId ngoài scope → return empty (không leak). Không fallback về scoped list khi userId out-of-scope.
 
+## Known edge cases (chưa cover trong prompts/3.md)
+- **Admin bị lock**: customers của admin đó vẫn được assign → notification vẫn route đến admin bị lock. Prompts/3.md chỉ nói "không có admin → SuperAdmin", không xét case admin locked. Nếu business cần, có thể thêm: treat locked admin as "no admin" → fall back SuperAdmin.
+- **Không có deleteUser endpoint**: chỉ lock/unlock. Nếu implement delete sau, phải cascade assignments.
+
 ## Implementation files
 - `UserService.createUser`: allowed roles + assignment creation
 - `UserService.validateCreateAccess`: SuperAdmin can create both ADMIN + CUSTOMER
